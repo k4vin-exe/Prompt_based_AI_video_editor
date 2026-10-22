@@ -183,6 +183,10 @@ def fold(transcript: Transcript, active_ops: List[BaseOp]) -> Timeline:
     8. Collect music ops.
     9. Compute edited_start_us / edited_end_us for every segment and caption.
     """
+    # Step 0: Filter operations revoked by RevokeOp (R-HIST-05)
+    revoked_target_ids = {op.target_op_id for op in active_ops if isinstance(op, RevokeOp)}
+    effective_ops = [op for op in active_ops if op.op_id not in revoked_target_ids and not isinstance(op, RevokeOp)]
+
     # Step 1: initial segment list
     segments = [Segment(
         src_start_us=0,
@@ -190,7 +194,7 @@ def fold(transcript: Transcript, active_ops: List[BaseOp]) -> Timeline:
     )]
 
     # Step 2: cuts
-    for op in active_ops:
+    for op in effective_ops:
         if isinstance(op, CutOp):
             segments = _apply_cut(segments, op.start_us, op.end_us)
         elif isinstance(op, KeepOp):
@@ -199,17 +203,17 @@ def fold(transcript: Transcript, active_ops: List[BaseOp]) -> Timeline:
             segments = _apply_cut(segments, op.end_us, transcript.duration_us)
 
     # Step 3: reorder
-    for op in active_ops:
+    for op in effective_ops:
         if isinstance(op, ReorderOp):
             segments = _apply_reorder(segments, op.sections)
 
     # Step 4: speed — last-writer-wins with range splitting (R-SPEED-02)
-    speed_ops = [op for op in active_ops if isinstance(op, SpeedOp)]
+    speed_ops = [op for op in effective_ops if isinstance(op, SpeedOp)]
     for op in speed_ops:
         segments = _apply_speed(segments, op.start_us, op.end_us, op.factor)
 
     # Step 5: mute / bleep
-    for op in active_ops:
+    for op in effective_ops:
         if isinstance(op, MuteOp):
             segments = _apply_flag(segments, op.start_us, op.end_us, "muted", True)
         elif isinstance(op, BleepOp):
@@ -220,11 +224,11 @@ def fold(transcript: Transcript, active_ops: List[BaseOp]) -> Timeline:
     total_duration = segments[-1].edited_end_us if segments else 0
 
     # Step 6: captions
-    captions = _resolve_captions(transcript, segments, active_ops)
+    captions = _resolve_captions(transcript, segments, effective_ops)
 
     # Step 8: music
     music = None
-    for op in active_ops:
+    for op in effective_ops:
         if isinstance(op, AddMusicOp):
             music = TimelineMusic(
                 music_url=op.music_url,

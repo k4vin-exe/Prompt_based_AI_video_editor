@@ -38,19 +38,22 @@ class History:
         self._next_group_id: int = 0
         self._head_group: Optional[int] = None   # highest active group_id
         self._current_group: Optional[int] = None
+        self._group_instructions: Dict[int, str] = {}
 
     # ── Writing ops ───────────────────────────────────────────────────────────
 
-    def begin_group(self) -> int:
+    def begin_group(self, instruction: Optional[str] = None) -> int:
         """
         Open a new undo group.  Returns the new group_id.
-        Must be followed by end_group().  (R-HIST-02)
+        Must be followed by end_group() or commit_group().  (R-HIST-02)
 
         A new edit always clears the redo stack (R-HIST-04): any op whose
         group_id > _head_group is revoked before we begin.
         """
         self._clear_redo()
         self._current_group = self._next_group_id
+        if instruction is not None:
+            self._group_instructions[self._current_group] = instruction
         self._next_group_id += 1
         return self._current_group
 
@@ -72,12 +75,29 @@ class History:
         self._next_op_id += 1
         return op
 
-    def end_group(self) -> None:
+    def append_op(self, op: BaseOp) -> BaseOp:
+        """Alias for append()."""
+        return self.append(op)
+
+    def end_group(self) -> int:
         """Close the current undo group and advance the head pointer."""
         if self._current_group is None:
             raise RuntimeError("end_group() called without begin_group()")
+        grp = self._current_group
         self._head_group = self._current_group
         self._current_group = None
+        return grp
+
+    def commit_group(self) -> int:
+        """Alias for end_group()."""
+        return self.end_group()
+
+    def get_active_ops(self) -> List[BaseOp]:
+        """Alias for active_ops()."""
+        return self.active_ops()
+
+    def get_group_instruction(self, group_id: int) -> str:
+        return self._group_instructions.get(group_id, f"Group #{group_id}")
 
     # ── Undo / Redo ───────────────────────────────────────────────────────────
 

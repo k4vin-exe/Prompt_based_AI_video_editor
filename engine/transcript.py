@@ -45,6 +45,11 @@ class Word:
     speaker: Optional[str] = None
     confidence: Optional[float] = None
 
+    @property
+    def word_id(self) -> str:
+        """Alias for id attribute (e.g. 'w0003')."""
+        return self.id
+
     def duration_us(self) -> int:
         return self.end_us - self.start_us
 

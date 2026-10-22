@@ -126,10 +126,11 @@ def _unit_to_seconds(unit_str: str) -> float:
     return 1.0
 
 
-def parse_time(expr: str) -> ParsedTime:
+def parse_time(expr: str, current_duration_us: Optional[int] = None) -> ParsedTime:
     """
     Parse a time expression string to a ParsedTime.
     Raises TimeParseError if no pattern matches.  (R-TIME-08)
+    If current_duration_us is provided, relative times ("last 10s") are resolved to absolute time.
     """
     expr = expr.strip()
 
@@ -137,8 +138,10 @@ def parse_time(expr: str) -> ParsedTime:
     m = _LAST_RE.search(expr)
     if m:
         value_s = float(m.group("value")) * _unit_to_seconds(m.group("unit"))
+        raw_us = int(value_s * MICROSECONDS_PER_SECOND)
+        resolved_us = (current_duration_us - raw_us) if current_duration_us is not None else raw_us
         return ParsedTime(
-            value_us=int(value_s * MICROSECONDS_PER_SECOND),
+            value_us=resolved_us,
             is_relative=True,
             relative_anchor="end",
             original=expr,

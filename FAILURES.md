@@ -23,3 +23,22 @@ Format: date | what failed | root cause | resolution
 - **Resolution**: Added eleven–sixty to `_WORD_TO_INT`; verified 68/68 tests pass
 
 ---
+
+## 2026-10-22 — Phase 1
+
+### Attempt 4: "Actually, put the intro back" regex
+- **What failed**: NLU parser returned `unknown` for "Actually, put the intro back".
+- **Root cause**: Regex looked for contiguous `put\s+back\s+(.+)`, failing when the target phrase sits between "put" and "back" ("put [the intro] back").
+- **Resolution**: Updated pattern to `(?:put\s+(.+?)\s+back|put\s+back\s+(.+)|restore\s+(.+)|bring\s+back\s+(.+))`.
+
+### Attempt 5: Whole-video cut vs remove topic precedence
+- **What failed**: "cut everything" was categorized as `remove_topic` with topic `"everything"`, returning `NO_MATCH` instead of `WHOLE_VIDEO_CUT`.
+- **Root cause**: `remove_topic` regex was evaluated before the whole-video cut check.
+- **Resolution**: Reordered rules so whole-video cut phrases are matched prior to general topic extraction.
+
+### Attempt 6: RevokeOp handling in timeline fold()
+- **What failed**: At Step 5 of the worked example ("Actually, put the intro back"), the timeline duration did not increase.
+- **Root cause**: `RevokeOp` was appended to history, but `fold()` did not filter out ops targeted by active `RevokeOp`s.
+- **Resolution**: Added step 0 in `fold()` to compute `effective_ops` by excluding any op targeted by an active `RevokeOp`, implementing true event-sourced revocation.
+
+---

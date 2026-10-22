@@ -104,6 +104,12 @@ class RejectedAnswer:
     reason: str = ""
     error_code: str = ""
     conflicting_op: Optional[int] = None
+    original_instruction: Optional[str] = None
+    contradicts_op_id: Optional[int] = None
+
+    def __post_init__(self):
+        if self.contradicts_op_id is not None and self.conflicting_op is None:
+            self.conflicting_op = self.contradicts_op_id
 
     def to_dict(self) -> dict:
         return {
@@ -111,6 +117,7 @@ class RejectedAnswer:
             "reason": self.reason,
             "error_code": self.error_code,
             "conflicting_op": self.conflicting_op,
+            "original_instruction": self.original_instruction,
         }
 
 
