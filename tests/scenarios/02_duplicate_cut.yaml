@@ -1,0 +1,5 @@
+video: tests/fixtures/sync_oracle_test.mp4
+transcript: tests/fixtures/transcripts/interview_300s.json
+steps:
+  - say: "Cut the first 30 seconds"
+  - say: "Cut from 0:00 to 0:30"

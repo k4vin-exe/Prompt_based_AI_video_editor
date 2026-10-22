@@ -1,0 +1,9 @@
+video: tests/fixtures/sync_oracle_test.mp4
+transcript: tests/fixtures/transcripts/interview_300s.json
+steps:
+  - say: "Cut the first 30 seconds"
+  - say: "Speed up from 1:00 to 1:30 by 2x"
+  - say: "Undo"
+  - say: "Redo"
+  - say: "Undo"
+  - say: "Undo"

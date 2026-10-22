@@ -1,0 +1,4 @@
+video: tests/fixtures/sync_oracle_test.mp4
+transcript: tests/fixtures/transcripts/interview_300s.json
+steps:
+  - say: "bleep out channel"

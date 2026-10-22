@@ -51,3 +51,12 @@ Format: date | what failed | root cause | resolution
 - **Resolution**: Changed tag generation to `"".join(f"[v{i}][a{i}]" for i in range(num_segs))`. Verified render succeeds with 0.0 frames duration error.
 
 ---
+
+## 2026-10-23 — Phase 3
+
+### Attempt 8: Nested undo groups in multi-part instructions
+- **What failed**: Running batch session with multi-part instruction (`cut the first 10 seconds and speed up from 1:00 to 1:30 by 2x`) raised `RuntimeError: end_group() called without begin_group()`.
+- **Root cause**: `_execute_multi_instruction` opened an undo group, but the sub-intent handlers (`_handle_cut`, `_handle_speed`) also called `begin_group` and `commit_group`. The first sub-handler's `commit_group()` closed the undo group prematurely.
+- **Resolution**: Refactored `History` to support re-entrant undo groups using `_group_depth` counter. Sub-operations inside a multi-part instruction now seamlessly attach to the outer undo group, ensuring single-step atomic undo (R-HIST-02, R-CL-05). Verified 100% determinism across all 15 scenarios.
+
+---

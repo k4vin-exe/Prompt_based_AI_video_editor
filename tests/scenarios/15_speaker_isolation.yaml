@@ -1,0 +1,4 @@
+video: tests/fixtures/sync_oracle_test.mp4
+transcript: tests/fixtures/transcripts/two_speakers_120s.json
+steps:
+  - say: "remove everything the guest says about their old job"

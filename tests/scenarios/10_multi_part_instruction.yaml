@@ -1,0 +1,4 @@
+video: tests/fixtures/sync_oracle_test.mp4
+transcript: tests/fixtures/transcripts/interview_300s.json
+steps:
+  - say: "cut the first 10 seconds and speed up from 1:00 to 1:30 by 2x"

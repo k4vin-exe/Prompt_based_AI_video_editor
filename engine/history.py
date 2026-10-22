@@ -38,6 +38,7 @@ class History:
         self._next_group_id: int = 0
         self._head_group: Optional[int] = None   # highest active group_id
         self._current_group: Optional[int] = None
+        self._group_depth: int = 0
         self._group_instructions: Dict[int, str] = {}
 
     # ── Writing ops ───────────────────────────────────────────────────────────
@@ -45,17 +46,17 @@ class History:
     def begin_group(self, instruction: Optional[str] = None) -> int:
         """
         Open a new undo group.  Returns the new group_id.
-        Must be followed by end_group() or commit_group().  (R-HIST-02)
-
-        A new edit always clears the redo stack (R-HIST-04): any op whose
-        group_id > _head_group is revoked before we begin.
+        Supports re-entrant nesting so multi-part instructions can combine
+        sub-operations into a single undo group (R-HIST-02, R-CL-05).
         """
-        self._clear_redo()
-        self._current_group = self._next_group_id
-        if instruction is not None:
-            self._group_instructions[self._current_group] = instruction
-        self._next_group_id += 1
-        return self._current_group
+        if self._group_depth == 0:
+            self._clear_redo()
+            self._current_group = self._next_group_id
+            if instruction is not None:
+                self._group_instructions[self._current_group] = instruction
+            self._next_group_id += 1
+        self._group_depth += 1
+        return self._current_group  # type: ignore
 
     def append(self, op: BaseOp) -> BaseOp:
         """
@@ -81,12 +82,15 @@ class History:
 
     def end_group(self) -> int:
         """Close the current undo group and advance the head pointer."""
-        if self._current_group is None:
+        if self._group_depth <= 0 or self._current_group is None:
             raise RuntimeError("end_group() called without begin_group()")
-        grp = self._current_group
-        self._head_group = self._current_group
-        self._current_group = None
-        return grp
+        self._group_depth -= 1
+        if self._group_depth == 0:
+            grp = self._current_group
+            self._head_group = self._current_group
+            self._current_group = None
+            return grp
+        return self._current_group
 
     def commit_group(self) -> int:
         """Alias for end_group()."""

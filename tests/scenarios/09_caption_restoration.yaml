@@ -1,0 +1,6 @@
+video: tests/fixtures/sync_oracle_test.mp4
+transcript: tests/fixtures/transcripts/interview_300s.json
+steps:
+  - say: "Add a caption 'Welcome!' when I say welcome to the channel"
+  - say: "Cut the first 60 seconds"
+  - say: "Actually, put the intro back"

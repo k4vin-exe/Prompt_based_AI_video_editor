@@ -266,7 +266,7 @@ class Session:
         # Apply CutOp in new undo group
         self.history.begin_group(raw_text)
         op = CutOp(op_id=0, group_id=0, start_us=snapped_start, end_us=snapped_end, snapped=True)
-        self.history.append_op(op)
+        op = self.history.append_op(op)
         group_id = self.history.commit_group()
 
         self._current_timeline = fold(self.transcript, self.history.get_active_ops())
@@ -315,7 +315,7 @@ class Session:
 
         self.history.begin_group(raw_text)
         op = CutOp(op_id=0, group_id=0, start_us=src_start, end_us=src_end, snapped=True)
-        self.history.append_op(op)
+        op = self.history.append_op(op)
         group_id = self.history.commit_group()
 
         self._current_timeline = fold(self.transcript, self.history.get_active_ops())
@@ -350,7 +350,7 @@ class Session:
 
         self.history.begin_group(raw_text)
         op = KeepOp(op_id=0, group_id=0, start_us=src_start, end_us=src_end)
-        self.history.append_op(op)
+        op = self.history.append_op(op)
         group_id = self.history.commit_group()
 
         self._current_timeline = fold(self.transcript, self.history.get_active_ops())
@@ -404,7 +404,7 @@ class Session:
 
         self.history.begin_group(raw_text)
         op = SpeedOp(op_id=0, group_id=0, start_us=src_start, end_us=src_end, factor=factor)
-        self.history.append_op(op)
+        op = self.history.append_op(op)
         group_id = self.history.commit_group()
 
         self._current_timeline = fold(self.transcript, self.history.get_active_ops())
@@ -478,7 +478,7 @@ class Session:
             word_id_end=word_end_id,
             style=style_dict,
         )
-        self.history.append_op(op)
+        op = self.history.append_op(op)
         group_id = self.history.commit_group()
 
         self._current_timeline = fold(self.transcript, self.history.get_active_ops())
@@ -524,7 +524,7 @@ class Session:
             caption_id=target_cap.caption_id,
             style=style_update,
         )
-        self.history.append_op(op)
+        op = self.history.append_op(op)
         group_id = self.history.commit_group()
 
         self._current_timeline = fold(self.transcript, self.history.get_active_ops())
@@ -625,7 +625,7 @@ class Session:
 
         self.history.begin_group(raw_text)
         op = CutOp(op_id=0, group_id=0, start_us=match.src_start_us, end_us=match.src_end_us, snapped=True)
-        self.history.append_op(op)
+        op = self.history.append_op(op)
         group_id = self.history.commit_group()
 
         self._current_timeline = fold(self.transcript, self.history.get_active_ops())
@@ -670,8 +670,8 @@ class Session:
                 ops_list = []
                 for m in matches:
                     op = CutOp(op_id=0, group_id=0, start_us=m.src_start_us, end_us=m.src_end_us, snapped=True)
-                    self.history.append_op(op)
-                    ops_list.append(op)
+                    op_assigned = self.history.append_op(op)
+                    ops_list.append(op_assigned)
                 group_id = self.history.commit_group()
                 self._current_timeline = fold(self.transcript, self.history.get_active_ops())
                 return AppliedAnswer(
@@ -708,7 +708,7 @@ class Session:
 
             self.history.begin_group(f"Cut after {choice_val} mention")
             op = CutOp(op_id=0, group_id=0, start_us=src_start, end_us=src_end, snapped=True)
-            self.history.append_op(op)
+            op = self.history.append_op(op)
             group_id = self.history.commit_group()
             self._current_timeline = fold(self.transcript, self.history.get_active_ops())
             return AppliedAnswer(
@@ -782,7 +782,7 @@ class Session:
 
         self.history.begin_group(raw_text)
         revoke = RevokeOp(op_id=0, group_id=0, target_op_id=target_op.op_id)
-        self.history.append_op(revoke)
+        revoke = self.history.append_op(revoke)
         group_id = self.history.commit_group()
 
         self._current_timeline = fold(self.transcript, self.history.get_active_ops())
@@ -815,7 +815,7 @@ class Session:
         ops_list = []
         for start_us, end_us in cuts:
             op = CutOp(op_id=0, group_id=0, start_us=start_us, end_us=end_us, snapped=True)
-            self.history.append_op(op)
+            op = self.history.append_op(op)
             ops_list.append(op)
         group_id = self.history.commit_group()
 
@@ -857,7 +857,7 @@ class Session:
         ops_list = []
         for start_us, end_us in cuts:
             op = CutOp(op_id=0, group_id=0, start_us=start_us, end_us=end_us, snapped=True)
-            self.history.append_op(op)
+            op = self.history.append_op(op)
             ops_list.append(op)
         group_id = self.history.commit_group()
 
@@ -900,7 +900,7 @@ class Session:
         self.history.begin_group(raw_text)
         op_cls = BleepOp if is_bleep else MuteOp
         op = op_cls(op_id=0, group_id=0, start_us=target.src_start_us, end_us=target.src_end_us)
-        self.history.append_op(op)
+        op = self.history.append_op(op)
         group_id = self.history.commit_group()
 
         self._current_timeline = fold(self.transcript, self.history.get_active_ops())
@@ -928,7 +928,7 @@ class Session:
 
         self.history.begin_group(raw_text)
         op = AddMusicOp(op_id=0, group_id=0, music_url=url, duck_level_db=duck)
-        self.history.append_op(op)
+        op = self.history.append_op(op)
         group_id = self.history.commit_group()
 
         self._current_timeline = fold(self.transcript, self.history.get_active_ops())
@@ -968,7 +968,7 @@ class Session:
 
         self.history.begin_group(raw_text)
         op = CutOp(op_id=0, group_id=0, start_us=cut_start, end_us=cut_end, snapped=True)
-        self.history.append_op(op)
+        op = self.history.append_op(op)
         group_id = self.history.commit_group()
         self._current_timeline = fold(self.transcript, self.history.get_active_ops())
 
