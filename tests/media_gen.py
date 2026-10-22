@@ -33,6 +33,8 @@ import sys
 import tempfile
 import wave
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from engine.probe import get_ffmpeg_path, get_ffprobe_path
 
 
 def generate_sync_oracle_video(
@@ -63,10 +65,9 @@ def generate_sync_oracle_video(
         frames_dir = os.path.join(tmpdir, "frames")
         os.makedirs(frames_dir, exist_ok=True)
 
-        # Use ffmpeg to generate frames with burned-in frame number
-        # The lavfi testsrc gives a colour gradient; we add drawtext
+        ffmpeg_exe = get_ffmpeg_path()
         lavfi_cmd = [
-            "ffmpeg", "-y",
+            ffmpeg_exe, "-y",
             "-f", "lavfi",
             "-i", f"color=c=black:size={width}x{height}:rate={fps}:duration={duration_s}",
             "-vf",
@@ -84,7 +85,7 @@ def generate_sync_oracle_video(
 
         # Step 3: Combine video + audio
         combine_cmd = [
-            "ffmpeg", "-y",
+            ffmpeg_exe, "-y",
             "-i", os.path.join(tmpdir, "frames_only.mp4"),
             "-i", wav_path,
             "-c:v", "copy",
@@ -150,21 +151,12 @@ def measure_av_sync(
 ) -> dict:
     """
     Measure A/V sync on a Sync Oracle video.
-
-    Returns:
-      {
-        "length_frames": int,         # actual rendered frames
-        "expected_frames": int,       # from duration * fps
-        "length_error_frames": float, # |actual - expected|
-        "av_offset_frames": float,    # estimated A/V offset in frames
-      }
-
-    This is a simplified measurement using ffprobe.
-    Full frame-accurate measurement would decode each frame and detect pips.
     """
+    from engine.probe import get_ffprobe_path
+    ffprobe_exe = get_ffprobe_path() or "ffprobe"
     result = subprocess.run(
         [
-            "ffprobe", "-v", "quiet",
+            ffprobe_exe, "-v", "quiet",
             "-select_streams", "v:0",
             "-show_entries", "stream=nb_frames,r_frame_rate,duration",
             "-of", "json",

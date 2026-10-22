@@ -29,6 +29,7 @@ All items in the default execution path must have a commercially-usable licence.
 | python-multipart | ≥0.0.9 | Apache-2.0 | File uploads |
 | python-dotenv | ≥1.0 | BSD-3 | .env loading |
 | pdfplumber | ≥0.11 | MIT | Brief PDF extraction (dev only) |
+| imageio-ffmpeg | ≥0.5 | BSD-2 | Bundled FFmpeg static binaries |
 
 ## AI Models
 

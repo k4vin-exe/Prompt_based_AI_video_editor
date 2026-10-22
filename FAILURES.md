@@ -42,3 +42,12 @@ Format: date | what failed | root cause | resolution
 - **Resolution**: Added step 0 in `fold()` to compute `effective_ops` by excluding any op targeted by an active `RevokeOp`, implementing true event-sourced revocation.
 
 ---
+
+## 2026-10-22 — Phase 2
+
+### Attempt 7: FFmpeg concat filter pad ordering
+- **What failed**: `render_timeline` raised `RuntimeError: Media type mismatch between 'Parsed_asetpts_3' (audio) and 'Parsed_concat_8' input pad 2 (video)`.
+- **Root cause**: Input tags to `concat=n=N:v=1:a=1` were grouped as all video then all audio (`[v0][v1][a0][a1]`). FFmpeg requires alternating video and audio pads per segment (`[v0][a0][v1][a1]...`).
+- **Resolution**: Changed tag generation to `"".join(f"[v{i}][a{i}]" for i in range(num_segs))`. Verified render succeeds with 0.0 frames duration error.
+
+---
