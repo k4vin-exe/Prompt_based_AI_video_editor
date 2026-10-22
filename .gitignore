@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.env
+!.env.example
+
+# Test artifacts
+.pytest_cache/
+.hypothesis/
+htmlcov/
+.coverage
+coverage.xml
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+postgres_data/
+minio_data/
+
+# Model weights (downloaded at runtime)
+models/
+*.bin
+*.pt
+*.safetensors
+
+# Generated media (CI creates these)
+tests/fixtures/generated/
+outputs/
+
+# Secrets (never commit)
+*.pem
+*.key
+secrets/

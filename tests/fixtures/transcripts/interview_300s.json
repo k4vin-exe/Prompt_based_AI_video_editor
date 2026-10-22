@@ -1,0 +1,23 @@
+{
+  "words": [
+    {"text": "welcome",  "start_us":  42000000, "end_us":  42500000, "speaker": "speaker_0", "confidence": 0.99},
+    {"text": "to",       "start_us":  42550000, "end_us":  42700000, "speaker": "speaker_0", "confidence": 0.99},
+    {"text": "the",      "start_us":  42750000, "end_us":  42900000, "speaker": "speaker_0", "confidence": 0.99},
+    {"text": "channel",  "start_us":  42950000, "end_us":  44000000, "speaker": "speaker_0", "confidence": 0.97},
+    {"text": "today",    "start_us":  45000000, "end_us":  45600000, "speaker": "speaker_0", "confidence": 0.98},
+    {"text": "we",       "start_us":  45700000, "end_us":  45900000, "speaker": "speaker_0", "confidence": 0.99},
+    {"text": "will",     "start_us":  46000000, "end_us":  46300000, "speaker": "speaker_0", "confidence": 0.99},
+    {"text": "discuss",  "start_us":  46400000, "end_us":  47000000, "speaker": "speaker_0", "confidence": 0.96},
+    {"text": "pricing",  "start_us":  65000000, "end_us":  65800000, "speaker": "speaker_0", "confidence": 0.95},
+    {"text": "pricing",  "start_us": 160000000, "end_us": 160800000, "speaker": "speaker_0", "confidence": 0.94},
+    {"text": "pricing",  "start_us": 215000000, "end_us": 215800000, "speaker": "speaker_0", "confidence": 0.93},
+    {"text": "um",       "start_us":  90000000, "end_us":  90300000, "speaker": "speaker_0", "confidence": 0.88},
+    {"text": "uh",       "start_us": 120000000, "end_us": 120250000, "speaker": "speaker_0", "confidence": 0.85},
+    {"text": "like",     "start_us": 135000000, "end_us": 135400000, "speaker": "speaker_0", "confidence": 0.90},
+    {"text": "thanks",   "start_us": 280000000, "end_us": 280700000, "speaker": "speaker_0", "confidence": 0.99},
+    {"text": "for",      "start_us": 280800000, "end_us": 281000000, "speaker": "speaker_0", "confidence": 0.99},
+    {"text": "watching", "start_us": 281100000, "end_us": 282000000, "speaker": "speaker_0", "confidence": 0.98}
+  ],
+  "language": "en",
+  "duration_us": 300000000
+}

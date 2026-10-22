@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "incubrix-video-editor"
+version = "0.1.0"
+description = "IncuBrix Prompt-Based Video Editing Engine"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["engine", "nlu", "media", "api", "cli"]
+omit = ["tests/*", "*/migrations/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
