@@ -399,8 +399,10 @@ def _resolve_captions(
     for op in active_ops:
         if isinstance(op, RestyleCaptionOp):
             existing = style_overrides.get(op.caption_id, {})
-            merged = {**existing, **op.style}
-            style_overrides[op.caption_id] = merged
+            if not isinstance(existing, dict):
+                existing = {}
+            op_style = op.style if isinstance(op.style, dict) else ({"color": op.style} if isinstance(op.style, str) and op.style else {})
+            style_overrides[op.caption_id] = {**existing, **op_style}
 
     captions = []
     for op in active_ops:
@@ -420,8 +422,11 @@ def _resolve_captions(
             if edited is not None:
                 surviving_spans.append(edited)
 
-        base_style = op.style or {}
-        merged_style = {**base_style, **style_overrides.get(op.caption_id, {})}
+        base_style = op.style if isinstance(op.style, dict) else ({"color": op.style} if isinstance(op.style, str) and op.style else {})
+        overrides = style_overrides.get(op.caption_id, {})
+        if not isinstance(overrides, dict):
+            overrides = {}
+        merged_style = {**base_style, **overrides}
 
         if not surviving_spans:
             captions.append(TimelineCaption(

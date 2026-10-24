@@ -449,7 +449,8 @@ class Session:
         cap_text = params.get("text", "")
         anchor_val = (params.get("anchor_phrase") or params.get("anchor") or "").lower().strip().strip("'\"")
         target_val = (params.get("target_phrase") or "").lower().strip().strip("'\"")
-        style_dict = params.get("style") or {}
+        raw_style = params.get("style")
+        style_dict = raw_style if isinstance(raw_style, dict) else ({"color": raw_style} if isinstance(raw_style, str) and raw_style else {})
 
         start_phrases = {
             "the start", "start", "the beginning", "beginning", "intro", "the intro",
@@ -639,17 +640,35 @@ class Session:
             group_id=group_id,
         )
 
-    def _handle_auto_caption(self, params: Dict[str, Any], raw_text: str) -> AppliedAnswer:
-        style = params.get("style", {})
+    def _handle_auto_caption(self, params: Dict[str, Any], raw_text: str) -> AppliedAnswer | RejectedAnswer:
+        words = self.transcript.words
+        if not words:
+            return RejectedAnswer(
+                reason="No words available in transcript to auto-caption.",
+                error_code="CAPTION_NO_WORDS",
+                original_instruction=raw_text,
+            )
+
+        raw_style = params.get("style")
+        style = raw_style if isinstance(raw_style, dict) else ({"color": raw_style} if isinstance(raw_style, str) and raw_style else {})
+        before_dur = self._current_timeline.duration_us
+        before_hash = self.get_timeline_hash()
+
         self.history.begin_group(raw_text)
 
-        # Chunk transcript into sentences/clauses
-        words = self.transcript.words
+        # Chunk transcript into natural sentences/clauses (3-6 words)
         ops_added = []
         i = 0
         while i < len(words):
             chunk_start = i
-            chunk_end = min(i + 4, len(words) - 1)
+            max_end = min(i + 5, len(words) - 1)
+            chunk_end = max_end
+            # Look for natural punctuation break (. ? ! , ; :) between i+2 and max_end
+            for j in range(min(i + 2, max_end), max_end + 1):
+                if words[j].text.endswith((".", "!", "?", ",", ";", ":")):
+                    chunk_end = j
+                    break
+
             chunk_words = words[chunk_start:chunk_end + 1]
             chunk_text = " ".join(w.text for w in chunk_words)
 
@@ -668,14 +687,13 @@ class Session:
 
         group_id = self.history.commit_group()
         self._current_timeline = fold(self.transcript, self.history.get_active_ops())
+        after_dur = self._current_timeline.duration_us
+        after_hash = self.get_timeline_hash()
 
         return AppliedAnswer(
             operations=[OperationSummary(op.op_id, "AddCaptionOp", f"Caption '{op.text}'") for op in ops_added],
             summary=f"Auto-captioned full video ({len(ops_added)} caption blocks created).",
-            before_after=BeforeAfter(
-                self._current_timeline.duration_us, self._current_timeline.duration_us,
-                self.get_timeline_hash(), self.get_timeline_hash()
-            ),
+            before_after=BeforeAfter(before_dur, after_dur, before_hash, after_hash),
             time_policy="current_edited",
             group_id=group_id,
         )

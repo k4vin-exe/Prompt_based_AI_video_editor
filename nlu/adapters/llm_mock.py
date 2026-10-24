@@ -171,9 +171,11 @@ def _rule_based_intent(text: str) -> str:
         return json.dumps({"intent": "cut", "params": {"start": None, "end": None}})
 
     # Caption: add / put / show / display / overlay
-    if re.search(r"\b(caption|subtitle|text|overlay)\b", t):
-        if re.search(r"\bauto\b", t):
+    if re.search(r"\b(caption|subtitle)\b", t):
+        if re.search(r"\b(auto|fully|full|whole|entire|everywhere|throughout|all|generate)\b", t) or not re.search(r"['\"]", t):
             return json.dumps({"intent": "auto_caption", "params": {}})
+        return json.dumps({"intent": "add_caption", "params": {"text": "", "anchor": None}})
+    if re.search(r"\b(text|overlay)\b", t):
         return json.dumps({"intent": "add_caption", "params": {"text": "", "anchor": None}})
     if re.search(r"\b(put|show|display|overlay|add)\b.+\b(?:text|words?|['\"].+['\"])", t) or re.search(r"\bin\b.+\badd\b.+['\"].+['\"]", t):
         return json.dumps({"intent": "add_caption", "params": {"text": "", "anchor": None}})

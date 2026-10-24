@@ -85,3 +85,34 @@ def test_parse_remove_silences():
     intent = parse_instruction("Remove silences longer than 1.5 seconds")
     assert intent["intent"] == "remove_silences"
     assert intent["params"]["threshold_s"] == 1.5
+
+
+@pytest.mark.parametrize("phrase", [
+    "add captions fully",
+    "add full captions",
+    "add captions",
+    "add subtitles fully",
+    "add full subtitles",
+    "add subtitles",
+    "auto caption",
+    "auto-caption",
+    "caption the whole video",
+    "generate captions",
+    "generate subtitles",
+    "caption fully",
+    "caption everything",
+])
+def test_parse_auto_caption_variations(phrase):
+    intent = parse_instruction(phrase)
+    assert intent["intent"] == "auto_caption"
+    valid, err = validate_intent(intent)
+    assert valid, err
+
+
+def test_parse_auto_caption_styled():
+    intent = parse_instruction("add captions fully in red")
+    assert intent["intent"] == "auto_caption"
+    assert intent["params"]["style"]["color"] == "#ff0000"
+    valid, err = validate_intent(intent)
+    assert valid, err
+

@@ -116,7 +116,10 @@ def _fast_path_meta(text: str) -> Optional[Dict[str, Any]]:
         return {"intent": "undo", "params": {}}
     if re.fullmatch(r"redo", tl):
         return {"intent": "redo", "params": {}}
-    if tl in ("auto-caption", "auto caption", "caption the whole video"):
+    if re.search(
+        r"^(?:auto[- ]?caption(?:ing)?|auto[- ]?subtitle(?:s|ing)?|caption(?:s)?\s+(?:the\s+)?(?:whole|entire|full)\s+video|subtitle(?:s)?\s+(?:the\s+)?(?:whole|entire|full)\s+video|(?:add|generate|create|put|show)\s+(?:full\s+)?(?:captions?|subtitles?)(?:\s+(?:fully|full|everywhere|throughout|all\s+over|for\s+(?:the\s+)?(?:whole|entire|full)\s+video))?|caption(?:s)?\s+(?:fully|full|all|everything)|subtitle(?:s)?\s+(?:fully|full|all|everything)|full\s+(?:captions?|subtitles?))$",
+        tl,
+    ):
         return {"intent": "auto_caption", "params": {"style": {}}}
 
     if re.search(r"\b(cut|remove|delete)\s+(everything|the\s+whole\s+video)\b", tl):
@@ -216,9 +219,22 @@ def _rule_parse_single(text: str) -> Dict[str, Any]:
             },
         }
 
-    # Auto caption
-    if "auto-caption" in tl or "auto caption" in tl or "caption the whole video" in tl:
-        return {"intent": "auto_caption", "params": {"style": {}}}
+    # Auto caption / full video subtitles
+    auto_caption_match = re.search(
+        r"\b(?:auto[- ]?caption(?:ing)?|auto[- ]?subtitle(?:s|ing)?|caption(?:s)?\s+(?:the\s+)?(?:whole|entire|full)\s+video|subtitle(?:s)?\s+(?:the\s+)?(?:whole|entire|full)\s+video|(?:add|generate|create|put|show)\s+(?:full\s+)?(?:captions?|subtitles?)(?:\s+(?:fully|full|everywhere|throughout|all\s+over|for\s+(?:the\s+)?(?:whole|entire|full)\s+video))?|caption(?:s)?\s+(?:fully|full|all|everything)|subtitle(?:s)?\s+(?:fully|full|all|everything)|full\s+(?:captions?|subtitles?))\b",
+        tl,
+    )
+    if auto_caption_match and not re.search(r"\bwhen\s+(?:i|someone)\s+say|over\s+the\s+words?|on\s+the\s+phrase\b", tl):
+        style: Dict[str, Any] = {}
+        for color_name, hex_code in COLOR_NAMES.items():
+            if re.search(rf"\b{color_name}\b", tl):
+                style["color"] = hex_code
+                break
+        if "bigger" in tl or "large" in tl:
+            style["font_size"] = 36
+        elif "smaller" in tl:
+            style["font_size"] = 18
+        return {"intent": "auto_caption", "params": {"style": style}}
 
     # 6. Restyle caption: "Make that caption red", "Make that caption bigger", "change caption color to blue"
     restyle_match = re.search(r"(?:make|change|turn)\s+(?:that\s+caption|the\s+caption|it)\s+(.+)", tl)
@@ -487,6 +503,7 @@ def _llm_parse(
         "- For cuts of the ending, outro, or blank/white/black screen at the end: set start='the end', end='end'.\n"
         "- For cuts of the intro or blank/black/white screen at the start: set start='0', end='the start'.\n"
         "- For 'the last X seconds': set start='the last X seconds', end='end'.\n"
+        "- For instructions asking to add captions or subtitles to the whole video, or 'add captions fully', 'auto caption', 'generate subtitles', 'add full captions', 'add captions', 'add subtitles': set intent to 'auto_caption'.\n"
         "- If a phrase or topic is ambiguous (mentioned multiple times), set \n"
         "  occurrence: null to trigger a clarification question.\n"
         "- policy is 'current_edited' (default) or 'original_source'.\n"
