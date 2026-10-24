@@ -843,49 +843,36 @@ async function pollRenderJob(jobId) {
 
 // ── Export & Download Helpers ───────────────────────────────────────────────
 
-async function triggerFileDownload(url, filename = "edited_video.mp4") {
+function triggerFileDownload(url, filename = "edited_video.mp4") {
   const saveFilename = filename.endsWith(".mp4") ? filename : `${filename}.mp4`;
-  let downloadUrl = url;
-  if (url.startsWith("http") && (url.includes("127.0.0.1:8000") || url.includes("localhost:8000"))) {
+  let downloadUrl = url || (state.projectId ? `/api/v1/projects/${state.projectId}/download` : "");
+  if (!downloadUrl) return;
+
+  if (downloadUrl.startsWith("http") && (downloadUrl.includes("127.0.0.1:8000") || downloadUrl.includes("localhost:8000"))) {
     try {
-      const u = new URL(url);
+      const u = new URL(downloadUrl);
       downloadUrl = u.pathname;
     } catch {}
   }
 
-  appendSystemMessage(`⬇ Preparing MP4 file download: "${saveFilename}"...`);
+  // Ensure download route is used rather than stream
+  downloadUrl = downloadUrl.replace("/api/v1/stream/", "/api/v1/download/");
 
-  try {
-    const res = await fetch(downloadUrl);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const blob = await res.blob();
-    const mp4Blob = new Blob([blob], { type: "video/mp4" });
-    const blobUrl = window.URL.createObjectURL(mp4Blob);
+  appendSystemMessage(`⬇ Downloading MP4: "${saveFilename}"...`, "applied");
 
-    const a = document.createElement("a");
-    a.style.display = "none";
-    a.href = blobUrl;
-    a.setAttribute("download", saveFilename);
-    document.body.appendChild(a);
-    a.click();
-
-    setTimeout(() => {
-      if (a.parentNode) a.parentNode.removeChild(a);
-      window.URL.revokeObjectURL(blobUrl);
-    }, 4000);
-
-    appendSystemMessage(`✓ Saved to Downloads: "${saveFilename}" (${(blob.size / (1024 * 1024)).toFixed(2)} MB). Enjoy your edited MP4!`, "applied");
-  } catch (err) {
-    console.warn("Blob fetch failed, falling back to direct anchor:", err);
-    const a = document.createElement("a");
-    a.href = downloadUrl;
-    a.setAttribute("download", saveFilename);
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      if (a.parentNode) a.parentNode.removeChild(a);
-    }, 500);
-  }
+  // Direct native anchor download:
+  // Using direct HTTP attachment ensures Chrome/Edge reads the Content-Disposition header
+  // and saves the file with the proper .mp4 extension instead of a blob UUID.
+  const a = document.createElement("a");
+  a.style.display = "none";
+  a.href = downloadUrl;
+  a.setAttribute("download", saveFilename);
+  a.target = "_self";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    if (a.parentNode) a.parentNode.removeChild(a);
+  }, 1000);
 }
 
 async function handleExportMP4() {
