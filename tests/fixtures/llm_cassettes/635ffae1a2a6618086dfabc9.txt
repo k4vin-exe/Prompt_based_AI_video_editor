@@ -1,0 +1,1 @@
+{"intent": "cut", "params": {"start": "0", "end": "the first 30 seconds", "policy": "current_edited", "raw_text": "Get rid of the first 30 seconds"}}

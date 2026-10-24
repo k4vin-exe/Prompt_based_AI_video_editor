@@ -1,0 +1,1 @@
+{"intent": "restyle_caption", "params": {"target": "that caption", "style": {"color": "#ff0000"}}}

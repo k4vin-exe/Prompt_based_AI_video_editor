@@ -1,0 +1,1 @@
+{"intent": "mute", "params": {"target_phrase": "shit"}}
