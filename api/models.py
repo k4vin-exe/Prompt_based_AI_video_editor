@@ -139,6 +139,7 @@ class JobQueuedResponse(BaseModel):
 
 class JobResultLinks(BaseModel):
     video_url: str = Field(..., description="Direct download link to rendered MP4 video")
+    stream_url: Optional[str] = Field(None, description="Direct in-browser streaming link to rendered MP4 video")
     timeline_url: str = Field(..., description="Direct download link to final timeline JSON")
     otio_url: str = Field(..., description="Direct download link to OpenTimelineIO export")
     manifest_url: str = Field(..., description="Direct download link to output manifest JSON")

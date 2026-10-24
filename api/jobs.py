@@ -104,6 +104,7 @@ def _execute_render_job(job_id: str, project_id: str, base_url: str) -> None:
         clean_base = base_url.rstrip("/")
         results_links = {
             "video_url": f"{clean_base}/api/v1/download/{job_id}/final_video.mp4",
+            "stream_url": f"{clean_base}/api/v1/stream/{job_id}/final_video.mp4",
             "timeline_url": f"{clean_base}/api/v1/download/{job_id}/final_timeline.json",
             "otio_url": f"{clean_base}/api/v1/download/{job_id}/final_timeline.otio",
             "manifest_url": f"{clean_base}/api/v1/download/{job_id}/manifest.json",

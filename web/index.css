@@ -293,6 +293,35 @@ body {
   color: #ef4444 !important;
 }
 
+.preview-status-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(16, 185, 129, 0.85);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+.preview-status-badge.updating {
+  background: rgba(245, 158, 11, 0.85);
+}
+
+.btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+}
+
 .playback-controls {
   display: flex;
   align-items: center;

@@ -398,13 +398,36 @@ def get_job_status(job_id: str) -> JobStatusResponse:
     )
 
 
-@router.get("/api/v1/download/{job_id}/{filename}", tags=["Rendering"])
-def download_artifact(job_id: str, filename: str):
+@router.get("/api/v1/stream/{job_id}/{filename}", tags=["Rendering"])
+def stream_artifact(job_id: str, filename: str):
+    """Stream rendered media directly to browser video player with Content-Disposition: inline."""
     file_path = os.path.join(settings.storage_dir, job_id, filename)
     if not os.path.exists(file_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "FILE_NOT_FOUND", "message": f"Artifact '{filename}' not found for job '{job_id}'.", "retryable": False, "details": {}},
         )
-    media_type = "video/mp4" if filename.endswith(".mp4") else None
-    return FileResponse(file_path, media_type=media_type, filename=filename)
+    media_type = "video/mp4" if filename.endswith(".mp4") else "application/octet-stream"
+    return FileResponse(file_path, media_type=media_type, headers={"Content-Disposition": "inline"})
+
+
+@router.get("/api/v1/download/{job_id}/{filename}", tags=["Rendering"])
+def download_artifact(job_id: str, filename: str):
+    """Download rendered MP4 video or export artifact with explicit attachment headers."""
+    file_path = os.path.join(settings.storage_dir, job_id, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "FILE_NOT_FOUND", "message": f"Artifact '{filename}' not found for job '{job_id}'.", "retryable": False, "details": {}},
+        )
+    media_type = "video/mp4" if filename.endswith(".mp4") else "application/octet-stream"
+    download_filename = filename if "." in filename else f"{filename}.mp4"
+    return FileResponse(
+        file_path,
+        media_type=media_type,
+        filename=download_filename,
+        headers={
+            "Content-Disposition": f'attachment; filename="{download_filename}"',
+            "Content-Type": media_type,
+        },
+    )

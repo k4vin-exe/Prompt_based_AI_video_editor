@@ -29,6 +29,8 @@ const dom = {
   renderBtn: document.getElementById("renderBtn"),
   videoPlayer: document.getElementById("videoPlayer"),
   captionOverlay: document.getElementById("captionOverlay"),
+  previewStatusBadge: document.getElementById("previewStatusBadge"),
+  quickDownloadBtn: document.getElementById("quickDownloadBtn"),
   playPauseBtn: document.getElementById("playPauseBtn"),
   playIcon: document.getElementById("playIcon"),
   pauseIcon: document.getElementById("pauseIcon"),
@@ -311,6 +313,8 @@ function handleInstructionAnswer(ans, originalText) {
       dur: ans.current_duration_s,
     });
     updateHistoryList();
+    // Automatically re-render the video so the player updates immediately
+    autoRenderEditedPreview();
 
   } else if (ans.status === "needs_clarification") {
     appendClarificationMessage(ans);
@@ -319,6 +323,100 @@ function handleInstructionAnswer(ans, originalText) {
   } else if (ans.status === "rejected") {
     appendSystemMessage(ans.reason, "rejected", ans.error_code);
   }
+}
+
+let _autoRenderJobTimer = null;
+
+async function autoRenderEditedPreview() {
+  if (!state.projectId) return;
+
+  if (dom.previewStatusBadge) {
+    dom.previewStatusBadge.textContent = "🎬 Rendering edited video...";
+    dom.previewStatusBadge.classList.add("updating");
+    dom.previewStatusBadge.classList.remove("hidden");
+  }
+
+  try {
+    const res = await fetch(`/api/v1/projects/${state.projectId}/render`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_url: null }),
+    });
+    if (res.status !== 202) return;
+    const data = await res.json();
+    const jobId = data.job_id;
+
+    if (_autoRenderJobTimer) clearInterval(_autoRenderJobTimer);
+
+    _autoRenderJobTimer = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/v1/jobs/${jobId}`);
+        if (!r.ok) return;
+        const job = await r.json();
+
+        if (job.status === "succeeded") {
+          clearInterval(_autoRenderJobTimer);
+          _autoRenderJobTimer = null;
+
+          if (dom.previewStatusBadge) {
+            dom.previewStatusBadge.textContent = "✓ Edited Video Active (MP4)";
+            dom.previewStatusBadge.classList.remove("updating");
+            dom.previewStatusBadge.classList.remove("hidden");
+          }
+
+          const streamUrl = job.results.stream_url || job.results.video_url;
+          const wasPlaying = !dom.videoPlayer.paused;
+          const prevTime = dom.videoPlayer.currentTime;
+
+          dom.videoPlayer.src = streamUrl;
+          dom.videoPlayer.load();
+          dom.videoPlayer.currentTime = Math.min(prevTime, state.videoDurationS || 0);
+          if (wasPlaying) dom.videoPlayer.play().catch(() => {});
+
+          if (dom.quickDownloadBtn) {
+            dom.quickDownloadBtn.href = job.results.video_url;
+            dom.quickDownloadBtn.setAttribute("download", "edited_video.mp4");
+            dom.quickDownloadBtn.classList.remove("hidden");
+          }
+
+          dom.downloadVideoBtn.href = job.results.video_url;
+          dom.downloadVideoBtn.setAttribute("download", "final_video.mp4");
+          dom.downloadTimelineBtn.href = job.results.timeline_url;
+          dom.downloadOtioBtn.href = job.results.otio_url;
+          dom.downloadManifestBtn.href = job.results.manifest_url;
+
+          appendRenderReadyMessage(job.results.video_url);
+
+        } else if (job.status === "failed") {
+          clearInterval(_autoRenderJobTimer);
+          _autoRenderJobTimer = null;
+          if (dom.previewStatusBadge) {
+            dom.previewStatusBadge.classList.add("hidden");
+          }
+        }
+      } catch {
+        clearInterval(_autoRenderJobTimer);
+        _autoRenderJobTimer = null;
+      }
+    }, 400);
+  } catch (err) {
+    console.warn("Auto render preview failed:", err);
+  }
+}
+
+function appendRenderReadyMessage(videoUrl) {
+  const bubble = document.createElement("div");
+  bubble.className = "chat-bubble system-bubble";
+  bubble.style.borderLeft = "3px solid var(--accent-emerald)";
+  bubble.innerHTML = `
+    <div class="bubble-header"><span class="bubble-author" style="color: var(--accent-emerald);">🎬 Edited Video (MP4) Updated</span></div>
+    <div class="bubble-body" style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+      <span>Video updated to ${state.videoDurationS.toFixed(2)}s. Preview playing above!</span>
+      <a class="btn btn-primary btn-sm" href="${videoUrl}" download="edited_video.mp4" style="text-decoration: none;">⬇ Download MP4</a>
+    </div>
+  `;
+  dom.chatStream.appendChild(bubble);
+  dom.chatStream.scrollTop = dom.chatStream.scrollHeight;
 }
 
 // ── Chat Stream Rendering ────────────────────────────────────────────────────
@@ -518,8 +616,40 @@ function togglePlayPause() {
 
 function onVideoTimeUpdate() {
   const current = dom.videoPlayer.currentTime;
+  const isRendered = dom.videoPlayer.src.includes("/stream/") || dom.videoPlayer.src.includes("/download/");
+
+  // Seamless Virtual Timeline Jumping for unrendered preview playback
+  if (!isRendered && state.timeline && state.timeline.segments && state.timeline.segments.length > 0) {
+    const segments = state.timeline.segments;
+    const firstStart = segments[0].src_start_us / 1000000;
+    const lastEnd = segments[segments.length - 1].src_end_us / 1000000;
+
+    if (current < firstStart - 0.05) {
+      dom.videoPlayer.currentTime = firstStart;
+      return;
+    }
+
+    if (current >= lastEnd) {
+      dom.videoPlayer.pause();
+      dom.videoPlayer.currentTime = firstStart;
+      dom.playIcon.classList.remove("hidden");
+      dom.pauseIcon.classList.add("hidden");
+      state.isPlaying = false;
+      return;
+    }
+
+    for (let i = 0; i < segments.length - 1; i++) {
+      const segEnd = segments[i].src_end_us / 1000000;
+      const nextStart = segments[i + 1].src_start_us / 1000000;
+      if (current >= segEnd && current < nextStart) {
+        dom.videoPlayer.currentTime = nextStart;
+        return;
+      }
+    }
+  }
+
   const dur = state.videoDurationS || dom.videoPlayer.duration || 1;
-  const pct = (current / dur) * 100;
+  const pct = Math.min((current / dur) * 100, 100);
 
   dom.timeScrubber.value = pct;
   dom.timeDisplay.textContent = `${formatTime(current)} / ${formatTime(dur)}`;
@@ -641,13 +771,26 @@ async function pollRenderJob(jobId) {
         clearInterval(interval);
         dom.renderStatusLabel.textContent = `Render completed in ${job.latency_ms} ms!`;
         dom.downloadVideoBtn.href = job.results.video_url;
+        dom.downloadVideoBtn.setAttribute("download", "final_video.mp4");
         dom.downloadTimelineBtn.href = job.results.timeline_url;
         dom.downloadOtioBtn.href = job.results.otio_url;
         dom.downloadManifestBtn.href = job.results.manifest_url;
         dom.renderResultsBox.classList.remove("hidden");
 
-        // Set video player to rendered video
-        dom.videoPlayer.src = job.results.video_url;
+        if (dom.quickDownloadBtn) {
+          dom.quickDownloadBtn.href = job.results.video_url;
+          dom.quickDownloadBtn.setAttribute("download", "final_video.mp4");
+          dom.quickDownloadBtn.classList.remove("hidden");
+        }
+
+        if (dom.previewStatusBadge) {
+          dom.previewStatusBadge.textContent = "✓ Rendered MP4 Active";
+          dom.previewStatusBadge.classList.remove("updating");
+          dom.previewStatusBadge.classList.remove("hidden");
+        }
+
+        // Set video player to streamed rendered video
+        dom.videoPlayer.src = job.results.stream_url || job.results.video_url;
         dom.videoPlayer.load();
 
       } else if (job.status === "failed") {

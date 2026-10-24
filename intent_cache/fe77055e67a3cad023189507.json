@@ -1,0 +1,1 @@
+{"response": "{\n  \"intent\": \"add_caption\",\n  \"params\": {\n    \"text\": \"welcome\",\n    \"target_phrase\": null,\n    \"anchor_phrase\": null,\n    \"style\": null\n  }\n}", "adapter": "groq"}
