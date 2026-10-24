@@ -1,1 +1,1 @@
-{"intent": "keep", "params": {"start": null, "end": null}}
+{"intent": "keep", "params": {"start": "keep from 1:00", "end": "2:00", "policy": "current_edited"}}

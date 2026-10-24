@@ -1,1 +1,1 @@
-{"intent": "cut", "params": {"start": null, "end": null}}
+{"intent": "cut", "params": {"start": "0", "end": "the first half minute", "policy": "current_edited", "raw_text": "Remove the first half minute"}}

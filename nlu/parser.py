@@ -176,9 +176,9 @@ def _rule_parse_single(text: str) -> Dict[str, Any]:
         }
 
     # 5. Add caption: "Add a caption 'Welcome!' when I say welcome to the channel"
-    # or "add a caption at 1:00 saying hello"
+    # or "put a 'Welcome!' text when I say...", "show 'Welcome!' on screen...", etc.
     caption_quote_match = re.search(
-        r"add\s+(?:a\s+)?caption\s+['\"]([^'\"]+)['\"](?:\s+(?:when\s+(?:i|someone)\s+say(?:s)?|on\s+the\s+words?|over)\s+(.+))?",
+        r"(?:add\s+(?:a\s+)?caption\s+|put\s+(?:a\s+)?|show\s+|display\s+(?:the\s+text\s+)?|overlay\s+)['\"]([^'\"]+)['\"](?:\s+(?:text\s+|on\s+screen\s+)?(?:when\s+(?:i|someone)\s+say(?:s)?|on\s+the\s+words?|over\s+the\s+words?|over|on\s+the\s+phrase)\s+(.+))?",
         t, re.IGNORECASE,
     )
     if caption_quote_match:
@@ -289,10 +289,9 @@ def _rule_parse_single(text: str) -> Dict[str, Any]:
         }
 
     # 11. Bleep / Mute
-    if "bleep" in tl or "mute" in tl:
-        is_bleep = "bleep" in tl
-        # phrase match: "bleep the word X" or "bleep when I say X"
-        target_match = re.search(r"(?:bleep|mute)\s+(?:the\s+words?|when\s+(?:i|someone)\s+say(?:s)?)\s+['\"]?([^'\"]+)['\"]?", t, re.IGNORECASE)
+    if re.search(r"\b(bleep|beep|censor|mute)\b", tl):
+        is_bleep = "mute" not in tl
+        target_match = re.search(r"(?:bleep|beep|censor|mute(?:\s+out)?|replace)\s+(?:over\s+)?(?:the\s+(?:swear\s+)?words?|when\s+(?:i|someone)\s+say(?:s)?)\s+['\"]?([^'\"]+?)['\"]?(?:\s+with\s+a\s+bleep)?$", t, re.IGNORECASE)
         phrase = target_match.group(1).strip() if target_match else None
         return {
             "intent": "bleep" if is_bleep else "mute",
@@ -331,7 +330,7 @@ def _rule_parse_single(text: str) -> Dict[str, Any]:
         }
 
     # 15. Remove topic: "remove the part about pricing", "cut the pricing bit", "remove pricing section"
-    topic_match = re.search(r"(?:remove|cut|delete)\s+(?:the\s+part\s+about|the\s+bit\s+about|the\s+section\s+about|the\s+)?(.+?)(?:\s+part|\s+bit|\s+section)?$", tl)
+    topic_match = re.search(r"(?:remove|cut|delete|get\s+rid\s+of|take\s+out)\s+(?:everything\s+about\s+|the\s+part\s+about\s+|the\s+bit\s+about\s+|the\s+bit\s+where.+about\s+|the\s+section\s+about\s+|the\s+)?(.+?)(?:\s+part|\s+bit|\s+section|\s+discussion)?$", tl)
     if topic_match:
         candidate = topic_match.group(1).strip()
         # Check if candidate is time-based
@@ -355,7 +354,7 @@ def _rule_parse_single(text: str) -> Dict[str, Any]:
             }
 
     # Cut: "cut the first 30 seconds", "remove 0:30-0:40", "cut from 1:00 to 1:30", "cut 0:30 to 1:00"
-    if re.search(r"\b(cut|remove|delete)\b", tl):
+    if re.search(r"\b(cut|remove|delete|trim|get\s+rid\s+of|take\s+out)\b", tl):
         # Range with dash or "to": "0:30-0:40" or "0:30 to 1:00" or "from 1:00 to 1:30"
         range_match = re.search(r"(?:from\s+)?(\d+:\d+|\d+)\s*(?:-|to)\s*(\d+:\d+|\d+)", tl)
         if range_match:
@@ -369,11 +368,12 @@ def _rule_parse_single(text: str) -> Dict[str, Any]:
                 },
             }
 
-        # Relative: "the first 30 seconds", "the last 10 seconds"
-        first_last_match = re.search(r"(the\s+(?:first|last)\s+[0-9a-z\s]+(?:seconds?|minutes?|mins?|secs?))", tl)
+        # Relative: "the first 30 seconds", "the last 10 seconds", "the beginning 30 seconds", "the first half minute"
+        first_last_match = re.search(r"((?:the\s+)?(first|last|beginning)\s+[0-9a-z\s]+(?:seconds?|minutes?|mins?|secs?|half\s+minute))", tl)
         if first_last_match:
             expr = first_last_match.group(1)
-            if "first" in expr:
+            kind = first_last_match.group(2)
+            if kind in ("first", "beginning"):
                 return {
                     "intent": "cut",
                     "params": {"start": "0", "end": expr, "policy": policy, "raw_text": t},

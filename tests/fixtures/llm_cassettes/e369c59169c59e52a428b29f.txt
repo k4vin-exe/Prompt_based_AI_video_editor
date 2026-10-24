@@ -1,1 +1,1 @@
-{"intent": "add_caption", "params": {"text": "", "anchor": null}}
+{"intent": "add_caption", "params": {"text": "Welcome!", "target_phrase": "welcome to the channel", "style": {}}}

@@ -1,1 +1,1 @@
-{"intent": "restore_edit", "params": {"description": "Actually, put the intro back", "which": "Actually, put the intro back"}}
+{"intent": "restore_edit", "params": {"description": "the intro", "which": "the intro"}}

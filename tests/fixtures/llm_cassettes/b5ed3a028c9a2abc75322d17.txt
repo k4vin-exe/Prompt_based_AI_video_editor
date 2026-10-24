@@ -1,1 +1,1 @@
-{"intent": "restore_edit", "params": {"description": "Put back what I removed at the beginning", "which": "Put back what I removed at the beginning"}}
+{"intent": "restore_edit", "params": {"description": "what i removed at the beginning", "which": "what i removed at the beginning"}}

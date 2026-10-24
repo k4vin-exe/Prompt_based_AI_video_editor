@@ -1,1 +1,1 @@
-{"intent": "mute", "params": {"anchor": null}}
+{"intent": "mute", "params": {"target_phrase": "shit"}}

@@ -1,1 +1,1 @@
-{"intent": "remove_topic", "params": {"topic": "pricing", "occurrence": null}}
+{"intent": "remove_topic", "params": {"topic": "pricing"}}

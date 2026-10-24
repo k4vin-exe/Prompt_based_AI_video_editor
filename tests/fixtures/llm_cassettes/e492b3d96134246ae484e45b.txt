@@ -1,1 +1,1 @@
-{"intent": "bleep", "params": {"anchor": null}}
+{"intent": "bleep", "params": {"target_phrase": "shit"}}
