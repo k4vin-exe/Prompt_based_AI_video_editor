@@ -10,7 +10,7 @@ Strict adherence to:
 from __future__ import annotations
 
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── Standardized JSON Error (Integration Standard 5) ─────────────────────────
@@ -56,6 +56,8 @@ class ProjectResponse(BaseModel):
     has_audio: bool = Field(..., description="True if video has at least one audio stream", examples=[True])
     transcript_word_count: int = Field(..., description="Number of timestamped words in transcript", examples=[17])
     created_at: str = Field(..., description="UTC ISO8601 creation timestamp")
+    video_url: Optional[str] = Field(None, description="Direct URL or static path to preview the video file")
+    analysis_summary: Optional[Dict[str, Any]] = Field(None, description="Summary of perception pipeline analysis (silences, speakers, topics)")
 
 
 # ── Instructions (3-Way Answers) ─────────────────────────────────────────────
@@ -67,6 +69,17 @@ class InstructionRequest(BaseModel):
         description="Optional time policy override: 'current_edited' or 'original_source'",
         examples=["current_edited"],
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_say(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "say" not in data:
+                if "instruction" in data:
+                    data["say"] = data["instruction"]
+                elif "prompt" in data:
+                    data["say"] = data["prompt"]
+        return data
 
 
 class OperationSummaryModel(BaseModel):
