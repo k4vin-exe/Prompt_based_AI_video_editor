@@ -1,16 +1,21 @@
 """
 nlu/parser.py
 -------------
-Deterministic Natural Language Understanding (NLU) instruction parser.
-Translates plain English editing instructions into structured intent dicts
-conforming to INTENT_SCHEMA.
+NLU instruction parser — AI-primary, regex-fallback.
 
-Enforces:
-- Brief §Must-have 4: "All timeline logic is ordinary code you wrote. An AI model may
-  only translate words into structured operations."
-- Time policy: defaults to current_edited, unless "in the original" / "in the source" is stated (R-TIME-02, R-TIME-03).
-- Fast and 100% deterministic rule parser with zero API tokens or latency.
-- Pluggable LLM fallback for unrecognized instructions when configured.
+Architecture:
+  1. Fast-path regex: handles unambiguous meta-commands (undo, redo, render,
+     clarification_reply). These are never sent to an LLM.
+  2. LLM primary: if an llm_adapter is provided, the instruction is sent to the
+     LLM WITH a context pack. The LLM returns a validated intent JSON.
+  3. Regex fallback: if no LLM is configured, the full rule-based parser runs.
+     This is the "offline / mock" path used in CI.
+
+Enforces Brief §Must-have 4:
+  "An AI model may only translate words into structured operations;
+   all timeline logic is ordinary code you wrote."
+
+The LLM returns ONLY the intent + params JSON. No timeline mutation happens here.
 """
 from __future__ import annotations
 
@@ -39,30 +44,49 @@ COLOR_NAMES = {
 def parse_instruction(
     text: str,
     llm_adapter: Optional[LLMAdapter] = None,
+    context_pack: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Parse a user instruction into a validated intent dictionary.
-    First tries deterministic regex matching; if that yields unknown and an LLM is
-    provided, delegates to the LLM adapter.
+
+    Strategy (AI-primary):
+    1. Fast-path regex for unambiguous meta-commands.
+    2. LLM (if adapter provided) with context pack for everything else.
+    3. Full rule-based parser as fallback when no LLM is configured.
+
+    Args:
+        text:         Raw user instruction string.
+        llm_adapter:  Optional LLM adapter. When provided, it is the primary
+                      intent translator (Brief §Must-have 4).
+        context_pack: Optional compact session context string from nlu.context.
     """
     raw_text = text.strip()
     if not raw_text:
         return {"intent": "unknown", "params": {"error": "empty instruction"}}
 
-    # Multi-part instruction check (split by " and " if it contains two distinct command verbs)
-    multi_intents = _try_split_multi(raw_text, llm_adapter)
+    # ── Step 1: Fast-path meta-commands (never need LLM) ─────────────────────
+    fast = _fast_path_meta(raw_text)
+    if fast is not None:
+        return fast
+
+    # ── Step 2: LLM primary ───────────────────────────────────────────────────
+    if llm_adapter is not None:
+        intent = _llm_parse(raw_text, llm_adapter, context_pack)
+        valid, err = validate_intent(intent)
+        if valid and intent.get("intent") != "unknown":
+            return intent
+        # LLM returned unknown or invalid → fall through to regex
+
+    # ── Step 3: Full rule-based fallback ─────────────────────────────────────
+    # Multi-part instruction check
+    multi_intents = _try_split_multi(raw_text, None)
     if multi_intents:
         return {
             "intent": "multi",
             "params": {"intents": multi_intents},
         }
 
-    # Deterministic parse
     intent = _rule_parse_single(raw_text)
-
-    # If unknown and LLM adapter is available, call LLM
-    if intent["intent"] == "unknown" and llm_adapter is not None:
-        intent = _llm_parse(raw_text, llm_adapter)
 
     # Validate against JSON schema
     valid, err = validate_intent(intent)
@@ -73,6 +97,32 @@ def parse_instruction(
         }
 
     return intent
+
+
+def _fast_path_meta(text: str) -> Optional[Dict[str, Any]]:
+    """
+    Instantly handle unambiguous meta-commands without LLM or regex.
+    Returns None if the instruction is not a meta-command.
+    """
+    tl = text.lower().strip()
+
+    if re.fullmatch(r"render(?:\s+the\s+video)?", tl):
+        return {"intent": "render", "params": {}}
+    if re.fullmatch(r"undo", tl):
+        return {"intent": "undo", "params": {}}
+    if re.fullmatch(r"redo", tl):
+        return {"intent": "redo", "params": {}}
+    if tl in ("auto-caption", "auto caption", "caption the whole video"):
+        return {"intent": "auto_caption", "params": {"style": {}}}
+
+    # Ordinal clarification reply: "the second one", "all"
+    ord_match = re.search(r"\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|1st|2nd|3rd|\d+)\s+one\b", tl)
+    if ord_match:
+        return {"intent": "clarification_reply", "params": {"choice": ord_match.group(1)}}
+    if tl in ("all", "all of them", "all 3", "every one", "everything"):
+        return {"intent": "clarification_reply", "params": {"choice": "all"}}
+
+    return None
 
 
 def _detect_policy(text: str) -> str:
@@ -361,19 +411,64 @@ def _try_split_multi(text: str, llm_adapter: Optional[LLMAdapter]) -> Optional[L
     return parsed_parts if len(parsed_parts) > 1 else None
 
 
-def _llm_parse(text: str, llm_adapter: LLMAdapter) -> Dict[str, Any]:
-    """Use configured LLM adapter to translate instruction to intent JSON."""
+def _llm_parse(
+    text: str,
+    llm_adapter: LLMAdapter,
+    context_pack: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Use configured LLM adapter to translate instruction to intent JSON.
+
+    The system prompt instructs the LLM to output ONLY a JSON object.
+    The user prompt includes the instruction and (if provided) the context pack.
+    """
     system_prompt = (
-        "You are an NLU parser for a video editor. "
-        "Translate user instructions into JSON conforming to the intent schema: "
-        "{'intent': ..., 'params': {...}}. "
-        "Allowed intents: cut, keep, speed, add_caption, restyle_caption, "
-        "auto_caption, remove_fillers, remove_silences, mute, bleep, "
-        "remove_topic, remove_speaker, add_music, undo, redo, restore_edit, render. "
-        "Output ONLY valid JSON."
+        "You are the NLU parser for a prompt-based video editing engine. "
+        "Your ONLY job is to translate a user's natural-language editing instruction "
+        "into a JSON object. The JSON must have exactly two keys: \"intent\" and \"params\". "
+        "\n\nAllowed intents and their key params:\n"
+        "  cut          : {start, end, policy}          # time strings or null\n"
+        "  keep         : {start, end, policy}\n"
+        "  speed        : {factor, start, end, policy}  # factor is a number\n"
+        "  add_caption  : {text, target_phrase, anchor_phrase, style}\n"
+        "  restyle_caption: {target, style}\n"
+        "  auto_caption : {style}\n"
+        "  remove_fillers: {}\n"
+        "  remove_silences: {threshold_s}\n"
+        "  mute         : {target_phrase}\n"
+        "  bleep        : {target_phrase}\n"
+        "  remove_topic : {topic, occurrence}           # occurrence: null=ask, int=which one\n"
+        "  remove_speaker: {speaker, topic}\n"
+        "  add_music    : {music_url, duck_level_db}\n"
+        "  undo         : {}\n"
+        "  redo         : {}\n"
+        "  restore_edit : {description, which}\n"
+        "  render       : {}\n"
+        "  unknown      : {error}                       # only if truly unrecognisable\n"
+        "\nRules:\n"
+        "- Output ONLY valid JSON. No explanation, no markdown, no extra text.\n"
+        "- For time references like '1:30', '30 seconds', 'the last 10 seconds', \n"
+        "  output the string as-is in start/end fields.\n"
+        "- If a phrase or topic is ambiguous (mentioned multiple times), set \n"
+        "  occurrence: null to trigger a clarification question.\n"
+        "- policy is 'current_edited' (default) or 'original_source'.\n"
     )
-    raw = llm_adapter.complete(system_prompt, text)
+
+    user_prompt = text
+    if context_pack:
+        user_prompt = f"CONTEXT:\n{context_pack}\n\nINSTRUCTION: {text}"
+
+    raw = llm_adapter.complete(system_prompt, user_prompt)
+
+    # Strip markdown code fences if present
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+
     try:
         return json.loads(raw)
     except Exception:
-        return {"intent": "unknown", "params": {"error": "LLM output non-JSON", "raw": raw}}
+        return {"intent": "unknown", "params": {"error": "LLM output non-JSON", "raw": raw[:200]}}

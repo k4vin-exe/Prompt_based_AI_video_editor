@@ -74,7 +74,7 @@ def find_exact_phrase(transcript: Transcript, phrase: str) -> List[MatchSpan]:
                 src_start_us=window[0].start_us,
                 src_end_us=window[-1].end_us,
                 speaker=window[0].speaker,
-                confidence=min(w.confidence for w in window),
+                confidence=min([w.confidence for w in window if w.confidence is not None], default=1.0),
                 score=1.0,
             ))
 
@@ -131,7 +131,7 @@ def find_topic_occurrences(
                 src_start_us=span_words[0].start_us,
                 src_end_us=span_words[-1].end_us,
                 speaker=span_words[0].speaker,
-                confidence=min(w.confidence for w in span_words),
+                confidence=min([w.confidence for w in span_words if w.confidence is not None], default=1.0),
                 score=score,
             ))
 

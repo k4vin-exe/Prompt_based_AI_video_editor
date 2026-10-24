@@ -23,11 +23,13 @@ As required by the brief (Tools section), every AI coding tool used is documente
 
 ### What AI generated from my spec:
 - Core engine implementations (`engine/transcript.py`, `ops.py`, `history.py`, `timeline.py`, `timemap.py`, `answer.py`, `probe.py`, `render.py`, `otio_export.py`)
-- NLU parsers and intent schema validation (`nlu/`)
+- Perception pipeline (`perception/pipeline.py`, `vad.py`, `diarize.py`, `topics.py`, `analysis.json` caching)
+- AI LLM adapter layer (`nlu/adapters/` with Gemini, Groq, Ollama, MockLLMAdapter, CachingLLMAdapter)
+- NLU parsers, grounding resolver (`nlu/grounding.py`), context pack builder (`nlu/context.py`), and intent schema validation (`nlu/intent_schema.py`)
 - CLI session runner (`cli/runner.py`) and batch determinism runner (`cli/batch.py`)
 - FastAPI containerised service (`api/`) and OpenAPI 3.1 export
 - Interactive dark-mode Web UI (`web/index.html`, `index.css`, `app.js`)
-- Test suites (`tests/unit/`, `tests/integration/`)
+- Comprehensive test suites (`tests/unit/`, `tests/integration/`, 54 paraphrase tests)
 
 ### What I caught, corrected, and logged in FAILURES.md:
 1. `_WORD_TO_INT` missing compound numbers — caused "a minute twenty" to parse as 60s not 80s.
@@ -38,16 +40,20 @@ As required by the brief (Tools section), every AI coding tool used is documente
 6. FFmpeg concat pad interleaving — alternating `[v0][a0][v1][a1]...` pads to avoid media type mismatches.
 7. Re-entrant undo groups in multi-part instructions — added `_group_depth` counter to prevent premature commits.
 8. Time bounds checking on short test videos — adapting default word spans to video duration.
+9. Background render pipeline argument mismatch (`output_path` vs `output_video_path`).
+10. `BeforeAfter` duration attribute name mismatch (`duration_us_*` conversion to seconds).
+11. LLM mock rule fallback ordering & cassette staleness during paraphrase testing.
+12. NoneType word confidence handling in `min()` during transcript phrase search.
 
 ---
 
 ## Guarantees
 
 - I can explain every function, class, algorithm, and design decision live in detail.
-- All AI-generated code is thoroughly tested (105 passing automated tests; 100.0% determinism across 3 runs).
+- All AI-generated code is thoroughly tested (172 passing automated tests; 100.0% determinism across 15 scenarios and 3 runs).
 - Zero non-commercial or AGPL dependencies in the core shipped service.
 - All timeline folding logic is pure deterministic Python; LLMs only parse text to validated JSON schema.
 
 ---
-*Last updated: Phase 5 (Project Complete)*
+*Last updated: AI Layer Rebuild & Perception Pipeline Complete*
 

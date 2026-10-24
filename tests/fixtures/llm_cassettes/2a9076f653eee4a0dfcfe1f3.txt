@@ -1,0 +1,1 @@
+{"intent": "add_caption", "params": {"text": "", "anchor": null}}

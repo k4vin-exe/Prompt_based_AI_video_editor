@@ -38,7 +38,10 @@ All items in the default execution path must have a commercially-usable licence.
 | faster-whisper (base) | Systran (via HF) | MIT | STT (default) | Free/local |
 | BGE-small-en-v1.5 | BAAI via fastembed | Apache-2.0 | Semantic embeddings | Free/local |
 | llama-3.1-8b-instant | Meta via Groq | Llama-3 Community | NLU intent parsing (optional) | Free tier |
+| gemini-1.5-flash | Google AI Studio | Apache-2.0 (SDK) | NLU intent parsing (optional) | Free tier |
+| llama3.2 | Ollama | MIT (Ollama) / Llama-3 | NLU intent parsing (local) | Free/local |
 | whisper-large-v3 | OpenAI via Groq | MIT | STT (Groq adapter) | ~$0.111/hr |
+| Energy VAD | Pure Python/librosa | MIT / BSD | Silence detection | Free/local |
 
 ## Infrastructure / Images
 

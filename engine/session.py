@@ -35,6 +35,7 @@ from nlu.parser import parse_instruction
 from nlu.timeparse import parse_time
 
 
+
 class Session:
     """
     Stateful editing session for a video project.
@@ -45,10 +46,14 @@ class Session:
         transcript: Transcript,
         history: Optional[History] = None,
         project_id: str = "default_project",
+        llm_adapter=None,
+        analysis: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.transcript = transcript
         self.history = history or History()
         self.project_id = project_id
+        self.llm_adapter = llm_adapter  # Optional LLMAdapter for intent parsing
+        self.analysis = analysis        # Optional analysis.json dict from perception pipeline
         self._current_timeline: Timeline = fold(self.transcript, self.history.get_active_ops())
         self._pending_clarification: Optional[Dict[str, Any]] = None
         self._last_caption_id: Optional[int] = None
@@ -69,6 +74,8 @@ class Session:
     ) -> AppliedAnswer | ClarificationAnswer | RejectedAnswer:
         """
         Process a user instruction or clarification answer.
+        Uses the session's LLM adapter (if configured) as the primary intent parser,
+        with the current session state sent as a context pack.
         """
         # 1. Check if there's a pending clarification waiting for user answer
         if self._pending_clarification is not None:
@@ -76,8 +83,21 @@ class Session:
             if reply_answer is not None:
                 return reply_answer
 
-        # 2. Parse instruction to intent dict
-        intent_dict = parse_instruction(text)
+        # 2. Build context pack for LLM (compact session state description)
+        context_pack = None
+        if self.llm_adapter is not None:
+            try:
+                from nlu.context import build_context_pack
+                context_pack = build_context_pack(self, self.analysis)
+            except Exception:
+                pass  # context pack is best-effort
+
+        # 3. Parse instruction to intent dict
+        intent_dict = parse_instruction(
+            text,
+            llm_adapter=self.llm_adapter,
+            context_pack=context_pack,
+        )
         intent = intent_dict.get("intent", "unknown")
         params = intent_dict.get("params", {})
         if time_policy:
@@ -91,11 +111,11 @@ class Session:
                 original_instruction=text,
             )
 
-        # 3. Handle multi-intent compound instructions
+        # 4. Handle multi-intent compound instructions
         if intent == "multi":
             return self._execute_multi_instruction(params.get("intents", []), text)
 
-        # 4. Dispatch single intent
+        # 5. Dispatch single intent
         return self._dispatch_single_intent(intent, params, text)
 
     def _dispatch_single_intent(

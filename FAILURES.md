@@ -74,3 +74,15 @@ Format: date | what failed | root cause | resolution
 - **Resolution**: Updated `api/routes.py` to divide microsecond integers by `1_000_000` and construct `BeforeAfterModel`. Verified all integration tests pass.
 
 ---
+
+## 2026-10-24 — AI Layer Rebuild & Perception Pipeline
+
+### Attempt 11: LLM mock rule fallback ordering & cassette staleness
+- **What failed**: Paraphrase test suite failed on phrases like "Beep over the word shit" (returned `add_caption`), "Make that caption red" (returned `add_caption`), and "Cut out all the ums and uhs" (returned `cut`).
+- **Root cause**: `add_caption` pattern matched "caption" and "over the words" before `restyle_caption` and `bleep`/`mute` could evaluate. Word boundary `\bum\b` did not match plural "ums". Furthermore, the initial run had recorded incorrect cassettes to `tests/fixtures/llm_cassettes/*.txt`, caching stale outputs on disk.
+- **Resolution**: Reordered rule evaluation in `llm_mock.py` (checking `restyle_caption` and `bleep`/`mute` before generic caption, and supporting plurals `\b(ums?|uhs?)\b`). Purged stale cassettes to regenerate correct deterministic cassettes. All 54 paraphrase tests pass.
+
+### Attempt 12: NoneType confidence in `min()` during transcript search
+- **What failed**: `test_resolve_phrase` and `test_resolve_topic` raised `TypeError: '<' not supported between instances of 'NoneType' and 'NoneType'`.
+- **Root cause**: Word instances without explicit confidence default to `None`. `min(w.confidence for w in window)` raised a TypeError when comparing NoneType values.
+- **Resolution**: Handled None values safely using `min([w.confidence for w in window if w.confidence is not None], default=1.0)`. All 172 tests pass.

@@ -92,43 +92,87 @@ def _rule_based_intent(text: str) -> str:
     """
     t = text.lower().strip()
 
-    # Cut: "cut from X to Y" / "remove from X to Y"
-    if re.search(r"\b(cut|remove|delete)\b", t):
-        if re.search(r"\bfiller\b|\bum\b|\buh\b", t):
-            return json.dumps({"intent": "remove_fillers", "params": {}})
-        if re.search(r"\bsilence\b", t):
-            return json.dumps({"intent": "remove_silences", "params": {"threshold_s": 1.0}})
+    # Undo / redo / render
+    if re.fullmatch(r"undo", t):
+        return json.dumps({"intent": "undo", "params": {}})
+    if re.fullmatch(r"redo", t):
+        return json.dumps({"intent": "redo", "params": {}})
+    if re.search(r"\brender\b", t):
+        return json.dumps({"intent": "render", "params": {}})
+
+    # Restore / bring back / put back (check early before cut)
+    if re.search(r"\b(restore|bring\s+back|put\s+back)\b|put\s+.+\s+back", t):
+        return json.dumps({"intent": "restore_edit", "params": {"description": text, "which": text}})
+
+    # Remove fillers (check before generic cut)
+    if re.search(r"\b(filler|fillers|um|ums|uh|uhs)\b|clean\s+up", t):
+        return json.dumps({"intent": "remove_fillers", "params": {}})
+
+    # Remove silences (check before generic cut)
+    if re.search(r"\b(silence|silences|pause|pauses|gap|gaps)\b", t):
+        thresh = 1.0
+        m = re.search(r"(\d+(?:\.\d+)?)\s*s", t)
+        if m:
+            thresh = float(m.group(1))
+        return json.dumps({"intent": "remove_silences", "params": {"threshold_s": thresh}})
+
+    # Bleep / censor / mute (MUST be before caption because of "over the word")
+    if re.search(r"\b(bleep|beep|censor)\b|replace.+bleep", t):
+        return json.dumps({"intent": "bleep", "params": {"anchor": None}})
+    if re.search(r"\bmute\b", t):
+        return json.dumps({"intent": "mute", "params": {"anchor": None}})
+
+    # Restyle caption (MUST be before add_caption)
+    if re.search(r"\b(make|change|turn)\b.+\bcaption\b|\bcaption\b.+\b(red|blue|green|yellow|white|black|color|bigger|smaller|font)\b", t):
+        color_m = re.search(r"\b(red|blue|green|yellow|white|black|orange|purple|pink)\b", t)
+        style = {"color": color_m.group(1)} if color_m else {}
+        return json.dumps({"intent": "restyle_caption", "params": {"target": "that caption", "style": style}})
+
+    # Speed
+    if re.search(r"\b(speed|faster|slower|twice\s+as\s+fast|double\s+the\s+speed|accelerate|play.+at.+x)\b", t):
+        factor = 2.0 if re.search(r"\b(twice|2x|double)\b", t) else 1.5
+        if re.search(r"\bslow\b", t):
+            factor = 0.5
+        return json.dumps({"intent": "speed", "params": {"factor": factor, "start": None, "end": None}})
+
+    # Topic-based removal (check before generic cut)
+    if re.search(r"\b(cut|remove|delete|trim|get\s+rid\s+of|take\s+out)\b", t):
+        topic_m = re.search(r"(?:part\s+about|section\s+about|bit\s+about|bit\s+where.+about|everything\s+about)\s+(\w+)", t)
+        if not topic_m:
+            topic_m = re.search(r"(\w+)\s+(?:section|discussion|topic|part|segment)", t)
+        if topic_m:
+            cand = topic_m.group(1)
+            if cand not in ("first", "beginning", "next", "last", "end", "whole"):
+                return json.dumps({"intent": "remove_topic", "params": {"topic": cand, "occurrence": None}})
+
+    # Remove topic: "take out everything about X"
+    if re.search(r"everything\s+about", t):
+        topic_m = re.search(r"about\s+(\w+)", t)
+        topic = topic_m.group(1) if topic_m else "unknown"
+        return json.dumps({"intent": "remove_topic", "params": {"topic": topic, "occurrence": None}})
+
+    # Keep
+    if re.search(r"\bkeep\b", t):
+        return json.dumps({"intent": "keep", "params": {"start": None, "end": None}})
+
+    # Cut: cut / remove / delete / trim / get rid of / take out
+    if re.search(r"\b(cut|remove|delete|trim|get\s+rid\s+of|take\s+out)\b", t):
         return json.dumps({"intent": "cut", "params": {"start": None, "end": None}})
 
-    # Caption
-    if re.search(r"\bcaption\b|\btext\b|\bsubtitle\b", t):
+    # Caption: add / put / show / display / overlay
+    if re.search(r"\b(caption|subtitle|text|overlay)\b", t):
         if re.search(r"\bauto\b", t):
             return json.dumps({"intent": "auto_caption", "params": {}})
         return json.dumps({"intent": "add_caption", "params": {"text": "", "anchor": None}})
-
-    # Speed
-    if re.search(r"\bspeed\b|\bfaster\b|\bslower\b", t):
-        return json.dumps({"intent": "speed", "params": {"factor": 1.5, "start": None, "end": None}})
-
-    # Undo / redo
-    if re.search(r"\bundo\b", t):
-        return json.dumps({"intent": "undo", "params": {}})
-    if re.search(r"\bredo\b", t):
-        return json.dumps({"intent": "redo", "params": {}})
-
-    # Render
-    if re.search(r"\brender\b", t):
-        return json.dumps({"intent": "render", "params": {}})
+    if re.search(r"\b(put|show|display|overlay)\b.+\b(?:text|words?|['\"].+['\"])", t):
+        return json.dumps({"intent": "add_caption", "params": {"text": "", "anchor": None}})
+    if re.search(r"\b(when\s+i\s+say|over\s+the\s+words?|over\s+the\s+phrase)", t):
+        return json.dumps({"intent": "add_caption", "params": {"text": "", "anchor": None}})
 
     # Music
     if re.search(r"\bmusic\b|\bbackground\b", t):
         return json.dumps({"intent": "add_music", "params": {"url": ""}})
 
-    # Mute / bleep
-    if re.search(r"\bbleep\b", t):
-        return json.dumps({"intent": "bleep", "params": {"anchor": None}})
-    if re.search(r"\bmute\b", t):
-        return json.dumps({"intent": "mute", "params": {"anchor": None}})
-
     # Unknown
     return json.dumps({"intent": "unknown", "params": {}})
+
