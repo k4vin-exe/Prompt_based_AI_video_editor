@@ -14,6 +14,7 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -71,6 +72,20 @@ def _execute_render_job(job_id: str, project_id: str, base_url: str) -> None:
             source_video_path=proj.video_path,
             output_video_path=video_out_path,
         )
+
+        # Save convenience copies directly to outputs/ and system Downloads
+        try:
+            outputs_dir = Path("outputs")
+            outputs_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(video_out_path, outputs_dir / "final_video.mp4")
+            shutil.copyfile(video_out_path, outputs_dir / "edited_video.mp4")
+
+            downloads_dir = Path.home() / "Downloads"
+            if downloads_dir.exists():
+                shutil.copyfile(video_out_path, downloads_dir / "edited_video.mp4")
+                shutil.copyfile(video_out_path, downloads_dir / "final_video.mp4")
+        except Exception as copy_err:
+            logger.warning(f"Convenience copy failed: {copy_err}")
 
         # Step 4: Export timeline JSON, OTIO, and manifest (80%)
         state.update_job(job_id, progress=80)

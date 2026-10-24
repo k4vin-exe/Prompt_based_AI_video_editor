@@ -843,7 +843,8 @@ async function pollRenderJob(jobId) {
 
 // ── Export & Download Helpers ───────────────────────────────────────────────
 
-function triggerFileDownload(url, filename = "final_video.mp4") {
+async function triggerFileDownload(url, filename = "edited_video.mp4") {
+  const saveFilename = filename.endsWith(".mp4") ? filename : `${filename}.mp4`;
   let downloadUrl = url;
   if (url.startsWith("http") && (url.includes("127.0.0.1:8000") || url.includes("localhost:8000"))) {
     try {
@@ -851,15 +852,40 @@ function triggerFileDownload(url, filename = "final_video.mp4") {
       downloadUrl = u.pathname;
     } catch {}
   }
-  const a = document.createElement("a");
-  a.href = downloadUrl;
-  a.setAttribute("download", filename);
-  a.style.display = "none";
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => {
-    if (a.parentNode) a.parentNode.removeChild(a);
-  }, 300);
+
+  appendSystemMessage(`⬇ Preparing MP4 file download: "${saveFilename}"...`);
+
+  try {
+    const res = await fetch(downloadUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const mp4Blob = new Blob([blob], { type: "video/mp4" });
+    const blobUrl = window.URL.createObjectURL(mp4Blob);
+
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = blobUrl;
+    a.setAttribute("download", saveFilename);
+    document.body.appendChild(a);
+    a.click();
+
+    setTimeout(() => {
+      if (a.parentNode) a.parentNode.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    }, 4000);
+
+    appendSystemMessage(`✓ Saved to Downloads: "${saveFilename}" (${(blob.size / (1024 * 1024)).toFixed(2)} MB). Enjoy your edited MP4!`, "applied");
+  } catch (err) {
+    console.warn("Blob fetch failed, falling back to direct anchor:", err);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.setAttribute("download", saveFilename);
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (a.parentNode) a.parentNode.removeChild(a);
+    }, 500);
+  }
 }
 
 async function handleExportMP4() {
@@ -869,13 +895,13 @@ async function handleExportMP4() {
   }
 
   if (state.lastRenderedVideoUrl) {
-    triggerFileDownload(state.lastRenderedVideoUrl, "edited_video.mp4");
+    await triggerFileDownload(state.lastRenderedVideoUrl, "edited_video.mp4");
     return;
   }
 
   // If no rendered video yet, trigger background render flow or direct export
   appendSystemMessage("Exporting MP4: rendering edited video with FFmpeg...", "applied");
-  triggerFileDownload(`/api/v1/projects/${state.projectId}/download`, "edited_video.mp4");
+  await triggerFileDownload(`/api/v1/projects/${state.projectId}/download`, "edited_video.mp4");
 }
 
 function escapeHtml(str) {

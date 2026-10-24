@@ -443,6 +443,12 @@ def download_project_video(project_id: str):
     if latest_job and latest_job.results and "video_url" in latest_job.results:
         file_path = os.path.join(settings.storage_dir, latest_job.job_id, "final_video.mp4")
         if os.path.exists(file_path):
+            try:
+                dl_dir = os.path.expanduser("~/Downloads")
+                if os.path.exists(dl_dir):
+                    shutil.copyfile(file_path, os.path.join(dl_dir, "edited_video.mp4"))
+            except Exception:
+                pass
             return FileResponse(file_path, media_type="video/mp4", filename="edited_video.mp4")
 
     # If no render job completed yet, render immediately
@@ -451,5 +457,14 @@ def download_project_video(project_id: str):
     os.makedirs(job_dir, exist_ok=True)
     video_out_path = os.path.join(job_dir, "final_video.mp4")
     render_timeline(proj.session.timeline, proj.video_path, video_out_path)
+    try:
+        dl_dir = os.path.expanduser("~/Downloads")
+        if os.path.exists(dl_dir):
+            shutil.copyfile(video_out_path, os.path.join(dl_dir, "edited_video.mp4"))
+        out_dir = os.path.abspath("outputs")
+        os.makedirs(out_dir, exist_ok=True)
+        shutil.copyfile(video_out_path, os.path.join(out_dir, "edited_video.mp4"))
+    except Exception:
+        pass
     return FileResponse(video_out_path, media_type="video/mp4", filename="edited_video.mp4")
 
