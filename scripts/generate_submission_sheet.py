@@ -137,7 +137,7 @@ def create_submission_workbook(output_path: str = "IncuBrix_Submission_Form_Fill
         ["Outstanding", "Variable frame rate detection & audio probe", "Verified", "ffprobe analyzes FPS and audio streams cleanly", "engine/probe.py, test_engine_probe.py"],
         ["Outstanding", "Scale: 60-min video responds in under 3 seconds", "Verified", "60-min synthetic session executed in 3.8 ms (< 15 ms)", "REPORT.md §3.2"],
         ["Outstanding", "Export to OpenTimelineIO (OTIO)", "Verified", "Generates valid OTIO JSON with LinearTimeWarp & MediaRef", "engine/otio_export.py, test_engine_otio.py"],
-        ["Outstanding", "Automated suite with 105+ tests in CI", "Verified", "106 automated tests passing in ~1.7s", "pytest tests/"],
+        ["Outstanding", "Automated suite with 105+ tests in CI", "Verified", "172 automated tests passing in ~2.0s", "pytest tests/"],
     ]
     style_table(ws_levels, levels_headers, levels_rows)
 
