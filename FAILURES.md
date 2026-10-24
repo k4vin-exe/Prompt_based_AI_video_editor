@@ -60,3 +60,17 @@ Format: date | what failed | root cause | resolution
 - **Resolution**: Refactored `History` to support re-entrant undo groups using `_group_depth` counter. Sub-operations inside a multi-part instruction now seamlessly attach to the outer undo group, ensuring single-step atomic undo (R-HIST-02, R-CL-05). Verified 100% determinism across all 15 scenarios.
 
 ---
+
+## 2026-10-23 — Phase 4
+
+### Attempt 9: Background render pipeline argument mismatch
+- **What failed**: Background render job failed with `TypeError: render_timeline() got an unexpected keyword argument 'output_path'`.
+- **Root cause**: `api/jobs.py` passed keyword argument `output_path`, whereas `engine/render.py` declared parameter `output_video_path`.
+- **Resolution**: Aligned parameter name to `output_video_path` in `api/jobs.py`.
+
+### Attempt 10: BeforeAfter attribute name mismatch in API routes
+- **What failed**: `POST /api/v1/projects/{id}/instructions` returned 500 with `AttributeError: 'BeforeAfter' object has no attribute 'before_duration_s'`.
+- **Root cause**: `engine/answer.py` stores microsecond integers (`duration_us_before`, `duration_us_after`), while `api/routes.py` attempted to access `.before_duration_s` directly.
+- **Resolution**: Updated `api/routes.py` to divide microsecond integers by `1_000_000` and construct `BeforeAfterModel`. Verified all integration tests pass.
+
+---

@@ -31,6 +31,17 @@ def test_health_and_ready():
     assert "stt_adapter" in r_ready.json()
 
 
+def test_web_demo_serving():
+    """Verify live demo UI is served at root and /demo."""
+    r_root = client.get("/")
+    assert r_root.status_code == 200
+    assert "IncuBrix Editor" in r_root.text
+
+    r_demo = client.get("/demo")
+    assert r_demo.status_code == 200
+    assert "Visual Timeline Fold" in r_demo.text
+
+
 def test_standard_error_schema_on_not_found():
     """Verify 404 conforms to Integration Standard 5 schema."""
     resp = client.get("/api/v1/projects/nonexistent_project_id")

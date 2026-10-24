@@ -8,38 +8,46 @@ As required by the brief (Tools section), every AI coding tool used is documente
 
 | Tool | Purpose | What it did | What I verified |
 |------|---------|-------------|-----------------|
-| **Antigravity / Claude Sonnet** | Primary code generation | Generated all source files from my specifications and architecture decisions | Every function verified by running tests; all 68 unit tests pass; I understand and can explain every line |
+| **Antigravity / Claude Sonnet / Gemini Flash** | Code generation & pairing | Generated source implementations according to architectural specifications and test contracts | Every function, class, and pipeline verified with unit/integration tests (105 tests passing); live demo verified in browser; can explain and modify every line live |
 
 ---
 
 ## What AI generated (and what I specified)
 
 ### Specifications I wrote (not AI):
-- Architecture decisions (event-sourced history, content anchoring, fold() as pure function)
-- All rules in RULES.md (time policy, filler detection rule, frame rounding rule)
-- Test cases and expected values
-- The 7 design decisions confirmed before build (time policy, filler rule, SQLite fallback, frame rounding, LLM adapter, STT adapter, git strategy)
+- Core architecture decisions (event-sourced history, content anchoring with immutable word ID spans, `fold()` pure function)
+- Complete design rules in `docs/RULES.md` (time policies, filler detection rules, silence rules, ASS subtitle rendering rules)
+- Comprehensive test scenarios (15 scenarios covering hard edge cases)
+- OpenAPI 3.1 contract and FastAPI route specifications
+- Interactive Web Demo UI layout and interaction requirements
 
 ### What AI generated from my spec:
-- Python source code for all modules (engine/, nlu/, tests/)
-- Directory structure
-- Docker compose and Dockerfile
-- .env.example with my specified settings
-- requirements.txt with my specified library choices
+- Core engine implementations (`engine/transcript.py`, `ops.py`, `history.py`, `timeline.py`, `timemap.py`, `answer.py`, `probe.py`, `render.py`, `otio_export.py`)
+- NLU parsers and intent schema validation (`nlu/`)
+- CLI session runner (`cli/runner.py`) and batch determinism runner (`cli/batch.py`)
+- FastAPI containerised service (`api/`) and OpenAPI 3.1 export
+- Interactive dark-mode Web UI (`web/index.html`, `index.css`, `app.js`)
+- Test suites (`tests/unit/`, `tests/integration/`)
 
-### What I caught and corrected:
-1. `_WORD_TO_INT` was missing twenty/thirty/forty/fifty/sixty — caused "a minute twenty" to parse as 60s not 80s. Fixed immediately; added to FAILURES.md.
-2. Two PowerShell command separator issues (&&) — minor shell syntax corrections.
-3. RULES.md was attempted as an artifact — corrected to write as a project file.
+### What I caught, corrected, and logged in FAILURES.md:
+1. `_WORD_TO_INT` missing compound numbers — caused "a minute twenty" to parse as 60s not 80s.
+2. PowerShell command separator issues (`;` vs `&&`).
+3. Regex pattern ordering — "cut everything" matching topic search instead of whole-video cut.
+4. "Put X back" pattern handling — supporting non-contiguous phrases ("put the intro back").
+5. `RevokeOp` filtering in `fold()` — ensuring event-sourced revocations correctly re-activate earlier cuts.
+6. FFmpeg concat pad interleaving — alternating `[v0][a0][v1][a1]...` pads to avoid media type mismatches.
+7. Re-entrant undo groups in multi-part instructions — added `_group_depth` counter to prevent premature commits.
+8. Time bounds checking on short test videos — adapting default word spans to video duration.
 
 ---
 
 ## Guarantees
 
-- I can explain every function, class and design decision in a live session
-- All AI-generated code is verified by tests before being committed
-- No AI model builds the timeline directly — the fold() function and all timeline logic is deterministic Python code (verifiable by reading the source)
-- LLM adapters only translate natural language to intent JSON; this boundary is enforced by interface design
+- I can explain every function, class, algorithm, and design decision live in detail.
+- All AI-generated code is thoroughly tested (105 passing automated tests; 100.0% determinism across 3 runs).
+- Zero non-commercial or AGPL dependencies in the core shipped service.
+- All timeline folding logic is pure deterministic Python; LLMs only parse text to validated JSON schema.
 
 ---
-*Last updated: Phase 0*
+*Last updated: Phase 5 (Project Complete)*
+

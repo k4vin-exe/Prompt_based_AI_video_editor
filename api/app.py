@@ -15,6 +15,7 @@ import json
 import logging
 import time
 import uuid
+from pathlib import Path
 from typing import Callable
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -175,6 +176,24 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(router)
+
+    # Mount static assets and live demo UI
+    web_dir = Path(__file__).resolve().parent.parent / "web"
+    if web_dir.exists():
+        from fastapi.staticfiles import StaticFiles
+        from fastapi.responses import FileResponse
+        app.mount("/static", StaticFiles(directory=str(web_dir)), name="static")
+
+        @app.get("/", include_in_schema=False)
+        @app.get("/demo", include_in_schema=False)
+        async def serve_demo():
+            return FileResponse(str(web_dir / "index.html"))
+
+    fixtures_dir = Path(__file__).resolve().parent.parent / "tests" / "fixtures"
+    if fixtures_dir.exists():
+        from fastapi.staticfiles import StaticFiles
+        app.mount("/tests/fixtures", StaticFiles(directory=str(fixtures_dir)), name="fixtures")
+
     return app
 
 

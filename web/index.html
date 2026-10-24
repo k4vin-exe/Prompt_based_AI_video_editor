@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IncuBrix Prompt-Based Video Editor</title>
+  <meta name="description" content="AI prompt-based video editing engine with deterministic timeline folding, word-level accuracy, and live preview.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/index.css">
+</head>
+<body class="dark-theme">
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-mark">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <rect width="24" height="24" rx="6" fill="url(#logo-grad)"/>
+          <path d="M7 12L17 7V17L7 12Z" fill="white"/>
+          <defs>
+            <linearGradient id="logo-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#6366F1"/>
+              <stop offset="1" stop-color="#A855F7"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <div class="header-titles">
+        <h1 class="app-title">IncuBrix Editor</h1>
+        <span class="engine-tag">Core Engine v0.1.0 • Pure Fold</span>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <div class="project-selector-wrapper">
+        <label for="projectSelect">Project:</label>
+        <select id="projectSelect" class="styled-select">
+          <option value="oracle">Sync Oracle Test (10s, 25fps)</option>
+          <option value="interview">Interview Test (300s, Single Speaker)</option>
+          <option value="twospeakers">Interview Test (120s, Two Speakers)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <button id="undoBtn" class="btn btn-secondary" title="Undo last edit (R-HIST-04)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6M3 13a9 9 0 1 1 3 7.7"/></svg>
+        Undo
+      </button>
+      <button id="redoBtn" class="btn btn-secondary" title="Redo last undone edit">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6M21 13a9 9 0 1 0-3 7.7"/></svg>
+        Redo
+      </button>
+      <button id="renderBtn" class="btn btn-primary" title="Trigger background FFmpeg render (R-INT-03)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Render Video
+      </button>
+    </div>
+  </header>
+
+  <main class="app-layout">
+    <!-- Left Column: Video Preview & Visual Timeline -->
+    <section class="viewport-section">
+      <div class="video-card glass-panel">
+        <div class="video-container" id="videoContainer">
+          <video id="videoPlayer" preload="metadata" playsinline>
+            <source src="/tests/fixtures/sync_oracle_test.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+          <!-- Live Caption Overlay Layer -->
+          <div id="captionOverlay" class="caption-overlay hidden"></div>
+        </div>
+
+        <div class="playback-controls">
+          <button id="playPauseBtn" class="icon-btn" title="Play/Pause">
+            <svg id="playIcon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <svg id="pauseIcon" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          </button>
+          <span id="timeDisplay" class="time-display">00:00.00 / 00:00.00</span>
+          <input type="range" id="timeScrubber" min="0" max="100" value="0" step="0.1" class="scrubber">
+          <div class="time-policy-badge" id="timePolicyBadge" title="Current time policy">current_edited</div>
+        </div>
+      </div>
+
+      <!-- Visual Timeline Track Viewer -->
+      <div class="timeline-visual-card glass-panel">
+        <div class="timeline-card-header">
+          <div class="tl-title">
+            <span>Visual Timeline Fold</span>
+            <span class="hash-tag" id="timelineHashTag">Hash: computing...</span>
+          </div>
+          <div class="tl-stats">
+            <span id="tlDurationStat">Duration: --</span>
+            <span id="tlSegmentsStat">Segments: --</span>
+          </div>
+        </div>
+
+        <div class="timeline-tracks" id="timelineTracks">
+          <!-- Rendered dynamically by app.js -->
+          <div class="track-row video-track" id="videoTrackRow">
+            <div class="track-label">Video</div>
+            <div class="track-bars" id="videoTrackBars"></div>
+          </div>
+          <div class="track-row caption-track" id="captionTrackRow">
+            <div class="track-label">Captions</div>
+            <div class="track-bars" id="captionTrackBars"></div>
+          </div>
+          <div class="track-row audio-track" id="audioTrackRow">
+            <div class="track-label">Audio</div>
+            <div class="track-bars" id="audioTrackBars"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Interactive Chat, Instructions, & Transcript Pane -->
+    <section class="sidebar-section">
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" data-tab="chat">Edits & Responses</button>
+        <button class="tab-btn" data-tab="transcript">Interactive Transcript</button>
+        <button class="tab-btn" data-tab="history">History Log (<span id="historyCount">0</span>)</button>
+      </div>
+
+      <!-- Tab 1: Chat & Instruction Stream -->
+      <div class="tab-content active" id="chatTab">
+        <div class="chat-stream" id="chatStream">
+          <!-- Intro welcome bubble -->
+          <div class="chat-bubble system-bubble">
+            <div class="bubble-header">
+              <span class="bubble-author">IncuBrix Assistant</span>
+              <span class="bubble-time">Ready</span>
+            </div>
+            <div class="bubble-body">
+              Type any editing command below (e.g. <em>"Cut the first 30 seconds"</em>, <em>"Add caption 'Welcome!'"</em>, <em>"Remove filler words"</em>). Edits stick to immutable words!
+            </div>
+          </div>
+        </div>
+
+        <!-- Suggestion Chips -->
+        <div class="chips-container" id="suggestionChips">
+          <button class="chip" data-cmd="Add a caption 'Welcome!' when I say welcome to the channel">Caption "Welcome!"</button>
+          <button class="chip" data-cmd="Cut the first 30 seconds">Cut first 30s</button>
+          <button class="chip" data-cmd="Remove the part about pricing">Remove pricing</button>
+          <button class="chip" data-cmd="Speed up from 1:00 to 1:30 by 2x">2x Speed</button>
+          <button class="chip" data-cmd="Actually, put the intro back">Put intro back</button>
+          <button class="chip" data-cmd="remove filler words">Remove fillers</button>
+          <button class="chip" data-cmd="remove silences longer than 1 second">Remove silences</button>
+        </div>
+
+        <!-- Input Box -->
+        <form class="prompt-form" id="promptForm">
+          <input
+            type="text"
+            id="promptInput"
+            class="prompt-input"
+            placeholder="Type your video instruction..."
+            autocomplete="off"
+            required
+          >
+          <button type="submit" id="sendBtn" class="btn btn-primary send-btn">
+            <span>Apply</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </form>
+      </div>
+
+      <!-- Tab 2: Interactive Transcript Pane -->
+      <div class="tab-content" id="transcriptTab">
+        <div class="transcript-header">
+          <span class="transcript-count" id="transcriptWordCount">0 words</span>
+          <span class="transcript-hint">Click any word to seek</span>
+        </div>
+        <div class="transcript-words-container" id="transcriptWordsContainer">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Tab 3: History & Undo Groups -->
+      <div class="tab-content" id="historyTab">
+        <div class="history-list" id="historyList">
+          <div class="empty-state">No edits applied yet.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Interactive Clarification Modal (Brief §Needs Clarification) -->
+  <div class="modal-backdrop hidden" id="clarificationModal">
+    <div class="modal-card glass-panel">
+      <div class="modal-header">
+        <div class="modal-icon-badge">?</div>
+        <h3>Clarification Required</h3>
+      </div>
+      <p class="modal-question" id="modalQuestionText">Which mention did you want to cut?</p>
+      <div class="modal-options" id="modalOptionsContainer">
+        <!-- Option buttons generated dynamically -->
+      </div>
+      <div class="modal-custom-reply">
+        <input type="text" id="modalCustomInput" class="prompt-input" placeholder="Or type custom clarification...">
+        <button id="modalCustomSubmit" class="btn btn-secondary">Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Render Progress Overlay Modal -->
+  <div class="modal-backdrop hidden" id="renderModal">
+    <div class="modal-card glass-panel render-modal-card">
+      <div class="modal-header">
+        <div class="modal-icon-badge render-badge">🎬</div>
+        <h3>Rendering Video</h3>
+      </div>
+      <p class="render-step-label" id="renderStatusLabel">Submitting background job...</p>
+      <div class="progress-bar-wrapper">
+        <div class="progress-bar-fill" id="renderProgressBar" style="width: 0%"></div>
+      </div>
+      <span class="progress-text" id="renderProgressText">0%</span>
+
+      <div class="render-results hidden" id="renderResultsBox">
+        <h4>Render Complete!</h4>
+        <div class="result-links-grid">
+          <a id="downloadVideoBtn" class="btn btn-primary" href="#" target="_blank">Download MP4</a>
+          <a id="downloadTimelineBtn" class="btn btn-secondary" href="#" target="_blank">Timeline JSON</a>
+          <a id="downloadOtioBtn" class="btn btn-secondary" href="#" target="_blank">OTIO Export</a>
+          <a id="downloadManifestBtn" class="btn btn-secondary" href="#" target="_blank">Manifest</a>
+        </div>
+        <button id="closeRenderModalBtn" class="btn btn-outline" style="margin-top: 1rem;">Back to Editor</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
