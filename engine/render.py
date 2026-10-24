@@ -150,6 +150,8 @@ def render_timeline(
     source_video_path: str,
     output_video_path: str,
     ffmpeg_exe: Optional[str] = None,
+    aspect_ratio: Optional[str] = None,
+    effects: Optional[List[Dict[str, Any]]] = None,
 ) -> RenderResult:
     """
     Render a Timeline from a source video file to output MP4.
@@ -218,16 +220,41 @@ def render_timeline(
         filter_complex_parts.append(f"{concat_tags}concat=n={num_segs}:v=1:a=1[v_concat][a_concat]")
 
         # Handle Subtitles
-        v_final = "v_final"
+        v_curr = "v_concat"
         active_captions = [c for c in timeline.captions if not c.hidden]
         if active_captions:
             ass_path = os.path.join(temp_dir, "captions.ass")
             generate_ass_subtitles(timeline.captions, fps, ass_path)
             # Escape path for FFmpeg filter on Windows
             ass_filter_path = ass_path.replace("\\", "/").replace(":", "\\:")
-            filter_complex_parts.append(f"[v_concat]subtitles='{ass_filter_path}'[{v_final}]")
+            filter_complex_parts.append(f"[{v_curr}]subtitles='{ass_filter_path}'[v_sub]")
+            v_curr = "v_sub"
+
+        # Apply Visual Effects if present
+        if effects:
+            fx_filters = []
+            for fx in effects:
+                fx_type = fx.get("type") or fx.get("effect_type", "")
+                if fx_type in ("cinematic", "cinematic_grade"):
+                    fx_filters.append("eq=contrast=1.15:saturation=1.25")
+                elif fx_type in ("black_white", "black_and_white"):
+                    fx_filters.append("hue=s=0")
+                elif fx_type in ("vibration_flash", "flash"):
+                    fx_filters.append("eq=contrast=1.08:brightness=0.03")
+            if fx_filters:
+                filter_complex_parts.append(f"[{v_curr}]{','.join(fx_filters)}[v_fx]")
+                v_curr = "v_fx"
+
+        # Apply Aspect Ratio Framing
+        v_final = "v_final"
+        if aspect_ratio == "9:16":
+            filter_complex_parts.append(f"[{v_curr}]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1[{v_final}]")
+        elif aspect_ratio == "1:1":
+            filter_complex_parts.append(f"[{v_curr}]scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[{v_final}]")
+        elif aspect_ratio == "16:9":
+            filter_complex_parts.append(f"[{v_curr}]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[{v_final}]")
         else:
-            filter_complex_parts.append(f"[v_concat]null[{v_final}]")
+            filter_complex_parts.append(f"[{v_curr}]null[{v_final}]")
 
         # Build command
         full_filter_str = ";".join(filter_complex_parts)

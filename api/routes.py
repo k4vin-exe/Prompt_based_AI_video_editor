@@ -496,8 +496,13 @@ def save_project_video_local(project_id: str, open_folder: bool = True):
         job_id = f"job_render_{uuid.uuid4().hex[:10]}"
         job_dir = os.path.join(settings.storage_dir, job_id)
         os.makedirs(job_dir, exist_ok=True)
-        video_source = os.path.join(job_dir, "final_video.mp4")
-        render_timeline(proj.session.timeline, proj.video_path, video_source)
+        render_timeline(
+            proj.session.timeline,
+            proj.video_path,
+            video_source,
+            aspect_ratio=getattr(proj.session, "aspect_ratio", "16:9"),
+            effects=getattr(proj.session, "effects", []),
+        )
 
     # 1. Save directly to Downloads/edited_video.mp4
     dl_dir = os.path.expanduser("~/Downloads")

@@ -1400,17 +1400,39 @@ class Session:
         word_count = len(self.transcript.words) if (self.transcript and self.transcript.words) else 0
         wpm = int((word_count / (dur_s / 60.0))) if dur_s > 0 else 0
 
-        reply = (
-            f"AI Video Assistant analysis:\n"
-            f"• Duration: {dur_s:.1f}s | Spoken words: {word_count} (~{wpm} wpm pacing)\n"
-            f"• Recommended actions:\n"
-            f"  1. Add dynamic captions ('Auto caption the whole video') for +80% viewer retention.\n"
-            f"  2. Cut awkward pauses ('Remove silences longer than 1s') to maximize flow.\n"
-            f"  3. Convert to 9:16 vertical reels ('Make it 9:16') for TikTok/Instagram/YouTube Shorts.\n"
-            f"  4. Add visual punch with 'Add vibration flash effect'."
-        )
+        consult_reply = None
+        if self.llm_adapter is not None:
+            try:
+                snippet = " ".join(w.text for w in self.transcript.words[:80]) if (self.transcript and self.transcript.words) else "No spoken speech detected."
+                sys_prompt = (
+                    "You are a world-class professional video editor and viral content strategist. "
+                    "Provide clear, punchy, actionable editing guidance (under 120 words). "
+                    "Mention specific editing actions the user can take (e.g. cut, speed, subtitles, visual effects, 9:16 reels)."
+                )
+                user_prompt = (
+                    f"Video Duration: {dur_s:.1f}s | Word count: {word_count} words (~{wpm} WPM).\n"
+                    f"Transcript preview: '{snippet}'\n"
+                    f"User question/request: '{raw_text}'"
+                )
+                llm_res = self.llm_adapter.complete(sys_prompt, user_prompt)
+                if llm_res and len(llm_res.strip()) > 10:
+                    consult_reply = llm_res.strip()
+            except Exception:
+                consult_reply = None
+
+        if not consult_reply:
+            consult_reply = (
+                f"AI Video Assistant analysis:\n"
+                f"• Duration: {dur_s:.1f}s | Spoken words: {word_count} (~{wpm} wpm pacing)\n"
+                f"• Recommended actions:\n"
+                f"  1. Add dynamic captions ('Auto caption the whole video') for +80% viewer retention.\n"
+                f"  2. Cut awkward pauses ('Remove silences longer than 1s') to maximize flow.\n"
+                f"  3. Convert to 9:16 vertical reels ('Make it 9:16') for TikTok/Instagram/YouTube Shorts.\n"
+                f"  4. Add visual punch with 'Add vibration flash effect'."
+            )
+
         return AppliedAnswer(
-            summary=reply,
+            summary=consult_reply,
             before_after=BeforeAfter(
                 self._current_timeline.duration_us,
                 self._current_timeline.duration_us,

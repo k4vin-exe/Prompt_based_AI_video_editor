@@ -71,6 +71,8 @@ def _execute_render_job(job_id: str, project_id: str, base_url: str) -> None:
             timeline=timeline,
             source_video_path=proj.video_path,
             output_video_path=video_out_path,
+            aspect_ratio=getattr(proj.session, "aspect_ratio", "16:9"),
+            effects=getattr(proj.session, "effects", []),
         )
 
         # Save convenience copies directly to outputs/ and system Downloads

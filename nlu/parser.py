@@ -485,7 +485,11 @@ def _rule_parse_single(text: str) -> Dict[str, Any]:
         }
 
     # 20. Conversational AI Assistant / Creative Advice: "How can I make this video better?", "Give me hook ideas", "Summarize"
-    if re.search(r"^(?:how|what|why|can\s+you|could\s+you|give\s+me|tell\s+me|suggest|tips?|ideas?|summarize|analyze)\b", tl) or "?" in t:
+    if (
+        re.search(r"^(?:how|what|why|can\s+you|could\s+you|give\s+me|tell\s+me|suggest|tips?|ideas?|summarize|analyze|review|explain|help|assist)\b", tl)
+        or "?" in t
+        or any(w in tl for w in ["make it better", "make it viral", "improve", "recommend", "pacing", "critique", "engagement"])
+    ):
         return {
             "intent": "ai_consult",
             "params": {"prompt": t, "raw_text": t},
@@ -518,6 +522,83 @@ def _try_split_multi(text: str, llm_adapter: Optional[LLMAdapter]) -> Optional[L
     return parsed_parts if len(parsed_parts) > 1 else None
 
 
+def _normalize_intent_dict(data: Dict[str, Any], raw_text: str) -> Dict[str, Any]:
+    """Normalize slight LLM schema variations to canonical engine intent format."""
+    intent = str(data.get("intent", "unknown")).lower().strip()
+    params = data.get("params", {})
+    if not isinstance(params, dict):
+        params = {}
+
+    # Map synonymous intents
+    intent_map = {
+        "trim": "cut",
+        "trim_video": "cut",
+        "slice": "cut",
+        "cut_video": "cut",
+        "remove": "cut",
+        "subtitles": "auto_caption",
+        "add_subtitles": "auto_caption",
+        "subtitle": "auto_caption",
+        "captions": "auto_caption",
+        "generate_captions": "auto_caption",
+        "full_captions": "auto_caption",
+        "effect": "add_effect",
+        "vfx": "add_effect",
+        "filter": "add_effect",
+        "visual_effect": "add_effect",
+        "aspect": "aspect_ratio",
+        "crop": "aspect_ratio",
+        "resize": "aspect_ratio",
+        "format": "aspect_ratio",
+        "split": "split_clip",
+        "split_video": "split_clip",
+        "advice": "ai_consult",
+        "consult": "ai_consult",
+        "question": "ai_consult",
+        "chat": "ai_consult",
+    }
+    if intent in intent_map:
+        intent = intent_map[intent]
+
+    # Normalize cut params if duration or target were used
+    if intent == "cut":
+        dur = params.get("duration_seconds") or params.get("duration") or params.get("duration_s")
+        target = str(params.get("target", "")).lower()
+        if dur is not None and not params.get("end"):
+            if any(k in target for k in ["start", "intro", "beginning", "head"]):
+                params["start"] = "0"
+                params["end"] = f"{dur}s"
+            elif any(k in target for k in ["end", "outro", "tail", "last"]):
+                params["start"] = f"the last {dur} seconds"
+                params["end"] = "end"
+            else:
+                params["start"] = "0"
+                params["end"] = f"{dur}s"
+
+    # Normalize effect params
+    if intent == "add_effect":
+        if "type" in params and "effect_type" not in params:
+            params["effect_type"] = params["type"]
+        if "effect_type" not in params:
+            params["effect_type"] = "vibration_flash"
+
+    # Normalize aspect ratio params
+    if intent == "aspect_ratio":
+        ratio = str(params.get("ratio", params.get("aspect_ratio", "9:16")))
+        if "9:16" in ratio or "vertical" in ratio or "reel" in ratio or "short" in ratio or "tiktok" in ratio:
+            params["ratio"] = "9:16"
+        elif "1:1" in ratio or "square" in ratio:
+            params["ratio"] = "1:1"
+        elif "16:9" in ratio or "landscape" in ratio or "horizontal" in ratio:
+            params["ratio"] = "16:9"
+        else:
+            params["ratio"] = ratio
+
+    data["intent"] = intent
+    data["params"] = params
+    return data
+
+
 def _llm_parse(
     text: str,
     llm_adapter: LLMAdapter,
@@ -530,39 +611,38 @@ def _llm_parse(
     The user prompt includes the instruction and (if provided) the context pack.
     """
     system_prompt = (
-        "You are the NLU parser for a prompt-based video editing engine. "
-        "Your ONLY job is to translate a user's natural-language editing instruction "
-        "into a JSON object. The JSON must have exactly two keys: \"intent\" and \"params\". "
-        "\n\nAllowed intents and their key params:\n"
-        "  cut          : {start, end, policy}          # time strings or null\n"
-        "  keep         : {start, end, policy}\n"
-        "  speed        : {factor, start, end, policy}  # factor is a number\n"
-        "  add_caption  : {text, target_phrase, anchor_phrase, style}\n"
-        "  restyle_caption: {target, style}\n"
-        "  auto_caption : {style}\n"
-        "  remove_fillers: {}\n"
-        "  remove_silences: {threshold_s}\n"
-        "  mute         : {target_phrase}\n"
-        "  bleep        : {target_phrase}\n"
-        "  remove_topic : {topic, occurrence}           # occurrence: null=ask, int=which one\n"
-        "  remove_speaker: {speaker, topic}\n"
-        "  add_music    : {music_url, duck_level_db}\n"
-        "  undo         : {}\n"
-        "  redo         : {}\n"
-        "  restore_edit : {description, which}\n"
-        "  render       : {}\n"
-        "  unknown      : {error}                       # only if truly unrecognisable\n"
-        "\nRules:\n"
-        "- Output ONLY valid JSON. No explanation, no markdown, no extra text.\n"
-        "- For time references like '1:30', '30 seconds', 'the last 10 seconds', \n"
-        "  output the string as-is in start/end fields.\n"
-        "- For cuts of the ending, outro, or blank/white/black screen at the end: set start='the end', end='end'.\n"
-        "- For cuts of the intro or blank/black/white screen at the start: set start='0', end='the start'.\n"
-        "- For 'the last X seconds': set start='the last X seconds', end='end'.\n"
-        "- For instructions asking to add captions or subtitles to the whole video, or 'add captions fully', 'auto caption', 'generate subtitles', 'add full captions', 'add captions', 'add subtitles': set intent to 'auto_caption'.\n"
-        "- If a phrase or topic is ambiguous (mentioned multiple times), set \n"
-        "  occurrence: null to trigger a clarification question.\n"
-        "- policy is 'current_edited' (default) or 'original_source'.\n"
+        "You are the NLU parser for a prompt-based video editing engine.\n"
+        "Translate the user instruction into a JSON object with exactly two keys: \"intent\" and \"params\".\n\n"
+        "Allowed intents and schemas:\n"
+        "  cut             : {\"start\": \"0\", \"end\": \"5s\", \"policy\": \"current_edited\"}\n"
+        "  keep            : {\"start\": \"1:00\", \"end\": \"2:00\", \"policy\": \"current_edited\"}\n"
+        "  speed           : {\"factor\": 2.0, \"start\": \"0:10\", \"end\": \"0:30\", \"policy\": \"current_edited\"}\n"
+        "  add_caption     : {\"text\": \"Welcome!\", \"target_phrase\": \"welcome\", \"style\": {\"color\": \"#ffff00\"}}\n"
+        "  auto_caption    : {\"style\": {\"color\": \"#ffff00\"}}\n"
+        "  restyle_caption : {\"target\": \"that caption\", \"style\": {\"color\": \"#ff0000\", \"bold\": true}}\n"
+        "  add_effect      : {\"effect_type\": \"vibration_flash\", \"intensity\": 1.0}\n"
+        "  aspect_ratio    : {\"ratio\": \"9:16\"}\n"
+        "  split_clip      : {\"at_time\": \"5.0\"}\n"
+        "  add_clip        : {\"clip_name\": \"clip_2.mp4\"}\n"
+        "  remove_fillers  : {}\n"
+        "  remove_silences : {\"threshold_s\": 1.0}\n"
+        "  mute            : {\"target_phrase\": \"target\"}\n"
+        "  bleep           : {\"target_phrase\": \"swear\"}\n"
+        "  remove_topic    : {\"topic\": \"pricing\", \"occurrence\": null}\n"
+        "  remove_speaker  : {\"speaker\": \"guest\", \"topic\": \"past\"}\n"
+        "  add_music       : {\"music_url\": \"lofi.mp3\", \"duck_level_db\": -18.0}\n"
+        "  ai_consult      : {\"query\": \"...\"}\n"
+        "  undo            : {}\n"
+        "  redo            : {}\n"
+        "  restore_edit    : {\"description\": \"intro\", \"which\": \"intro\"}\n"
+        "  render          : {}\n"
+        "  unknown         : {\"error\": \"...\"}\n\n"
+        "Rules:\n"
+        "- Output ONLY valid JSON. No explanation, no markdown fences, no conversational filler.\n"
+        "- For aspect ratio (9:16, 16:9, 1:1, vertical, reels, shorts, tiktok), use intent 'aspect_ratio'.\n"
+        "- For vibration flash, cinematic grade, glitch, vintage, blur, use intent 'add_effect'.\n"
+        "- For advice, suggestions, 'how to make viral', 'what can you do', use intent 'ai_consult'.\n"
+        "- For auto-captioning or full video subtitles ('add captions fully', 'auto caption'), use intent 'auto_caption'.\n"
     )
 
     user_prompt = text
@@ -573,13 +653,20 @@ def _llm_parse(
 
     # Strip markdown code fences if present
     raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-        raw = raw.strip()
+    if "```" in raw:
+        fence_match = re.search(r"```(?:json)?(.*?)```", raw, re.DOTALL)
+        if fence_match:
+            raw = fence_match.group(1).strip()
+
+    # Extract JSON object if embedded in text
+    json_match = re.search(r"\{.*\}", raw, re.DOTALL)
+    if json_match:
+        raw = json_match.group(0)
 
     try:
-        return json.loads(raw)
+        parsed = json.loads(raw)
+        return _normalize_intent_dict(parsed, text)
     except Exception:
-        return {"intent": "unknown", "params": {"error": "LLM output non-JSON", "raw": raw[:200]}}
+        # Fall back to rule-based parser on JSON failure
+        return _rule_parse_single(text)
+
