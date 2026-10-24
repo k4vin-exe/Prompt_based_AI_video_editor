@@ -3,200 +3,443 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IncuBrix Prompt-Based Video Editor</title>
-  <meta name="description" content="AI prompt-based video editing engine with deterministic timeline folding, word-level accuracy, and live preview.">
+  <title>IncuBrix Studio — AI Video Editor</title>
+  <meta name="description" content="Professional prompt-based AI video editor with multi-track timeline, visual effects, and word-level transcript sync.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/index.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/index.css?v=3.0">
 </head>
 <body class="dark-theme">
+  <!-- Top Application Navigation Bar -->
   <header class="app-header">
     <div class="header-left">
       <div class="logo-mark">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
           <rect width="24" height="24" rx="6" fill="url(#logo-grad)"/>
           <path d="M7 12L17 7V17L7 12Z" fill="white"/>
           <defs>
             <linearGradient id="logo-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
               <stop stop-color="#6366F1"/>
-              <stop offset="1" stop-color="#A855F7"/>
+              <stop offset="0.5" stop-color="#8B5CF6"/>
+              <stop offset="1" stop-color="#D946EF"/>
             </linearGradient>
           </defs>
         </svg>
       </div>
-      <div class="header-titles">
-        <h1 class="app-title">IncuBrix Editor</h1>
-        <span class="engine-tag">Core Engine v0.1.0 • Pure Fold</span>
+      <div class="header-branding">
+        <span class="app-title">IncuBrix Editor</span>
       </div>
+
+      <!-- Desktop Menus -->
+      <nav class="desktop-menu-bar">
+        <button class="menu-item" type="button">File</button>
+        <button class="menu-item" type="button">Edit</button>
+        <button class="menu-item" type="button">View</button>
+        <button class="menu-item" type="button">Clip</button>
+        <button class="menu-item highlight" type="button">AI Tools</button>
+      </nav>
     </div>
 
+    <!-- Center Active Clip & Project Picker -->
     <div class="header-center">
-      <div class="project-selector-wrapper">
-        <label for="projectSelect">Project:</label>
-        <select id="projectSelect" class="styled-select">
+      <div class="project-pill-container">
+        <span class="clip-pill-icon">🎬</span>
+        <select id="projectSelect" class="project-dropdown">
           <option value="oracle">Sync Oracle Test (10s, 25fps)</option>
           <option value="interview">Interview Test (300s, Single Speaker)</option>
           <option value="twospeakers">Interview Test (120s, Two Speakers)</option>
         </select>
         <input type="file" id="videoFileInput" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,video/*" style="display: none;">
-        <button id="uploadVideoBtn" class="btn btn-primary" title="Upload a video to analyze with AI and edit with natural language">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-          Upload Video
+        <button id="uploadVideoBtn" class="btn btn-ghost btn-sm" title="Import new video to project">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Import Media
         </button>
       </div>
     </div>
 
+    <!-- Right Header Actions -->
     <div class="header-right">
-      <button id="undoBtn" class="btn btn-secondary" title="Undo last edit (R-HIST-04)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6M3 13a9 9 0 1 1 3 7.7"/></svg>
-        Undo
+      <div class="history-actions">
+        <button id="undoBtn" class="btn-icon" title="Undo last edit (Ctrl+Z)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6M3 13a9 9 0 1 1 3 7.7"/></svg>
+        </button>
+        <button id="redoBtn" class="btn-icon" title="Redo last edit (Ctrl+Y)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6M21 13a9 9 0 1 0-3 7.7"/></svg>
+        </button>
+      </div>
+
+      <div class="badge-pro" title="Pro Engine Enabled">👑 Pro</div>
+
+      <button id="renderBtn" class="btn btn-secondary btn-sm" title="Re-render full timeline with FFmpeg">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Render Preview
       </button>
-      <button id="redoBtn" class="btn btn-secondary" title="Redo last undone edit">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6M21 13a9 9 0 1 0-3 7.7"/></svg>
-        Redo
-      </button>
-      <button id="renderBtn" class="btn btn-primary" title="Trigger background FFmpeg render (R-INT-03)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        Render Video
-      </button>
+
+      <a id="quickDownloadBtn" class="btn btn-export-glow btn-sm" href="#" download="edited_video.mp4" title="Export final edited MP4 to local Downloads">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Export MP4
+      </a>
     </div>
   </header>
 
-  <main class="app-layout">
-    <!-- Left Column: Video Preview & Visual Timeline -->
-    <section class="viewport-section">
-      <div class="video-card glass-panel">
-        <div class="video-container" id="videoContainer">
+  <!-- Main Application Body -->
+  <div class="app-workspace">
+    <!-- Left Navigation Tool Rail -->
+    <aside class="tool-rail">
+      <button class="rail-btn active" data-rail-tab="media" title="Media Bin (Files & Clips)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span>Media</span>
+      </button>
+      <button class="rail-btn" data-rail-tab="captions" title="Subtitles & Captions">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Text</span>
+      </button>
+      <button class="rail-btn" data-rail-tab="effects" title="Visual Effects">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>Effects</span>
+      </button>
+      <button class="rail-btn" data-rail-tab="audio" title="Audio, Silences & Bleeps">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        <span>Audio</span>
+      </button>
+      <button class="rail-btn" data-rail-tab="ai" title="AI Copilot & Transcript">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10a9.96 9.96 0 0 1-4.587-1.11L3 22l1.11-4.413A9.96 9.96 0 0 1 2 12C2 6.477 6.477 2 12 2z"/><path d="M8 12h.01M12 12h.01M16 12h.01"/></svg>
+        <span>Copilot</span>
+      </button>
+    </aside>
+
+    <!-- Left Collapsible Asset & Tool Drawer -->
+    <section class="drawer-panel" id="drawerPanel">
+      <!-- Media Drawer View -->
+      <div class="drawer-view active" id="drawerViewMedia">
+        <div class="drawer-header">
+          <div class="drawer-nav-tabs">
+            <button class="d-tab active" data-subtab="files">Files</button>
+            <button class="d-tab" data-subtab="stock">Stock</button>
+            <button class="d-tab" data-subtab="recent">Recent</button>
+          </div>
+          <button id="importClipHeaderBtn" class="btn btn-primary btn-xs">+ Add Clip</button>
+        </div>
+
+        <!-- Drop Zone -->
+        <div class="media-drop-zone" id="mediaDropZone">
+          <div class="drop-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          </div>
+          <span class="drop-title">Import Videos & Audio</span>
+          <span class="drop-subtitle">Drag files here or browse folder</span>
+          <button class="btn btn-outline btn-xs" id="browseFilesBtn">Browse Files</button>
+        </div>
+
+        <!-- Media Pool Clip Cards -->
+        <div class="media-clips-list" id="mediaClipsList">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Captions Drawer View -->
+      <div class="drawer-view" id="drawerViewCaptions">
+        <div class="drawer-header">
+          <h3 class="drawer-title">Captions & Subtitles</h3>
+        </div>
+        <div class="drawer-content">
+          <button class="btn btn-primary btn-block" id="autoCaptionAllBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Auto-Caption Entire Video
+          </button>
+          <div class="section-label">Subtitle Styling Presets</div>
+          <div class="style-presets-grid">
+            <button class="style-card active" data-style="mrbeast">
+              <span class="preset-sample mrbeast">HELLO WORLD</span>
+              <span class="preset-name">Viral Yellow</span>
+            </button>
+            <button class="style-card" data-style="boxed">
+              <span class="preset-sample boxed">Hello World</span>
+              <span class="preset-name">Boxed Minimal</span>
+            </button>
+            <button class="style-card" data-style="neon">
+              <span class="preset-sample neon">HELLO WORLD</span>
+              <span class="preset-name">Cyber Neon</span>
+            </button>
+            <button class="style-card" data-style="karaoke">
+              <span class="preset-sample karaoke">Hello <em>World</em></span>
+              <span class="preset-name">Karaoke Flow</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Effects Drawer View -->
+      <div class="drawer-view" id="drawerViewEffects">
+        <div class="drawer-header">
+          <h3 class="drawer-title">Visual Effects</h3>
+        </div>
+        <div class="drawer-content">
+          <div class="effects-grid">
+            <div class="effect-card" data-effect="vibration_flash">
+              <div class="effect-thumb fx-flash">⚡</div>
+              <div class="effect-info">
+                <strong>Vibration Flash</strong>
+                <span>Impact camera shake & glow</span>
+              </div>
+              <button class="btn btn-secondary btn-xs apply-fx-btn" data-fx="Add vibration flash effect">Apply</button>
+            </div>
+            <div class="effect-card" data-effect="cinematic">
+              <div class="effect-thumb fx-cine">🎬</div>
+              <div class="effect-info">
+                <strong>Cinematic Teal/Orange</strong>
+                <span>Hollywood movie grade</span>
+              </div>
+              <button class="btn btn-secondary btn-xs apply-fx-btn" data-fx="Apply cinematic color grade">Apply</button>
+            </div>
+            <div class="effect-card" data-effect="glitch">
+              <div class="effect-thumb fx-glitch">📺</div>
+              <div class="effect-info">
+                <strong>Glitch Distortion</strong>
+                <span>Cyberpunk RGB split</span>
+              </div>
+              <button class="btn btn-secondary btn-xs apply-fx-btn" data-fx="Add glitch effect">Apply</button>
+            </div>
+            <div class="effect-card" data-effect="vintage">
+              <div class="effect-thumb fx-vintage">📼</div>
+              <div class="effect-info">
+                <strong>Vintage 8mm Film</strong>
+                <span>Warm grain & retro dust</span>
+              </div>
+              <button class="btn btn-secondary btn-xs apply-fx-btn" data-fx="Add vintage film effect">Apply</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audio Drawer View -->
+      <div class="drawer-view" id="drawerViewAudio">
+        <div class="drawer-header">
+          <h3 class="drawer-title">Audio & Silence Tools</h3>
+        </div>
+        <div class="drawer-content">
+          <div class="quick-action-group">
+            <button class="btn btn-secondary btn-block quick-tool-btn" data-cmd="remove silences longer than 1 second">
+              🔇 Remove Silences (> 1.0s)
+            </button>
+            <button class="btn btn-secondary btn-block quick-tool-btn" data-cmd="remove filler words">
+              ✂️ Remove Filler Words (um, uh)
+            </button>
+            <button class="btn btn-secondary btn-block quick-tool-btn" data-cmd="bleep the word [curse]">
+              🤬 Bleep Profanity
+            </button>
+            <button class="btn btn-secondary btn-block quick-tool-btn" data-cmd="add background music url=lofi.mp3">
+              🎵 Add Lo-Fi Background Music
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Copilot & Transcript Drawer View -->
+      <div class="drawer-view" id="drawerViewAi">
+        <div class="drawer-header">
+          <div class="drawer-nav-tabs">
+            <button class="copilot-tab active" data-view="chat">AI Chat</button>
+            <button class="copilot-tab" data-view="transcript">Transcript (<span id="transcriptWordCount">0</span>w)</button>
+            <button class="copilot-tab" data-view="history">History (<span id="historyCount">0</span>)</button>
+          </div>
+        </div>
+        <div class="copilot-content-box" id="copilotChatBox">
+          <div class="chat-stream" id="chatStream">
+            <!-- Messages added dynamically -->
+          </div>
+        </div>
+        <div class="copilot-content-box hidden" id="copilotTranscriptBox">
+          <div class="transcript-words-container" id="transcriptWordsContainer"></div>
+        </div>
+        <div class="copilot-content-box hidden" id="copilotHistoryBox">
+          <div class="history-list" id="historyList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Center Stage: Video Monitor & Controls -->
+    <main class="center-stage">
+      <div class="monitor-wrapper">
+        <!-- Aspect Ratio Switcher -->
+        <div class="aspect-ratio-bar">
+          <span class="bar-label">Framing:</span>
+          <button class="ratio-btn active" data-ratio="16:9">🖥️ 16:9 Landscape</button>
+          <button class="ratio-btn" data-ratio="9:16">📱 9:16 Vertical (Reels)</button>
+          <button class="ratio-btn" data-ratio="1:1">⏹️ 1:1 Square</button>
+        </div>
+
+        <!-- Cinema Viewport -->
+        <div class="video-container ratio-16-9" id="videoContainer">
           <video id="videoPlayer" preload="metadata" playsinline>
             <source src="/tests/fixtures/sync_oracle_test.mp4" type="video/mp4">
             Your browser does not support the video tag.
           </video>
-          <!-- Live Caption Overlay Layer -->
-          <div id="captionOverlay" class="caption-overlay hidden"></div>
+          <!-- Dynamic Styled Subtitle Overlay -->
+          <div id="captionOverlay" class="caption-overlay hidden">
+            <span class="caption-text-styled">I am.</span>
+          </div>
           <!-- Edited Video Status Badge -->
-          <div id="previewStatusBadge" class="preview-status-badge hidden">🎬 Edited Video Preview Active</div>
+          <div id="previewStatusBadge" class="preview-status-badge hidden">🎬 Edited Video Active (MP4)</div>
         </div>
 
+        <!-- Playback Control Deck -->
         <div class="playback-controls">
-          <button id="playPauseBtn" class="icon-btn" title="Play/Pause">
-            <svg id="playIcon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            <svg id="pauseIcon" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-          </button>
-          <span id="timeDisplay" class="time-display">00:00.00 / 00:00.00</span>
-          <input type="range" id="timeScrubber" min="0" max="100" value="0" step="0.1" class="scrubber">
-          <div class="time-policy-badge" id="timePolicyBadge" title="Current time policy">current_edited</div>
-          <a id="quickDownloadBtn" class="btn btn-primary btn-sm" href="#" download="edited_video.mp4" title="Download the currently edited MP4 video" style="cursor: pointer; text-decoration: none;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-            Export MP4
-          </a>
+          <div class="time-readout" id="timeDisplay">00:00.00 / 00:10.00</div>
+
+          <div class="center-transport">
+            <button id="stepBackBtn" class="btn-transport" title="Step back 1 second">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+            </button>
+            <button id="playPauseBtn" class="btn-play-pause" title="Play / Pause (Space)">
+              <svg id="playIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <svg id="pauseIcon" class="hidden" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            </button>
+            <button id="stepForwardBtn" class="btn-transport" title="Step forward 1 second">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+            </button>
+          </div>
+
+          <div class="right-playback-tools">
+            <div class="volume-control">
+              <button id="muteToggleBtn" class="btn-icon-subtle" title="Mute audio">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              </button>
+              <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="1" class="volume-slider">
+            </div>
+            <button id="fullscreenBtn" class="btn-icon-subtle" title="Fullscreen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+            </button>
+          </div>
         </div>
       </div>
 
-      <!-- Visual Timeline Track Viewer -->
-      <div class="timeline-visual-card glass-panel">
-        <div class="timeline-card-header">
-          <div class="tl-title">
-            <span>Visual Timeline Fold</span>
+      <!-- Bottom Timeline Area -->
+      <section class="timeline-container">
+        <!-- Timeline Toolbar -->
+        <div class="timeline-toolbar">
+          <div class="tb-left">
+            <button id="splitClipBtn" class="btn-tool" title="Split clip at playhead (S)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+              <span>Split</span>
+            </button>
+            <button id="deleteClipBtn" class="btn-tool" title="Delete segment (Del)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>Delete</span>
+            </button>
+            <div class="tb-divider"></div>
+            <button class="btn-tool speed-tool" id="speedRampBtn" title="Speed factor">
+              <span>⚡ 1.0x</span>
+            </button>
+            <button class="btn-tool" id="quickCaptionBtn" title="Add caption at playhead">
+              <span>💬 Subtitle</span>
+            </button>
+            <button class="btn-tool" id="quickFlashBtn" title="Add vibration flash">
+              <span>✨ Flash</span>
+            </button>
+          </div>
+
+          <div class="tb-right">
+            <span class="timeline-title-badge">Visual Timeline Fold</span>
             <span class="hash-tag" id="timelineHashTag">Hash: computing...</span>
-          </div>
-          <div class="tl-stats">
-            <span id="tlDurationStat">Duration: --</span>
-            <span id="tlSegmentsStat">Segments: --</span>
-          </div>
-        </div>
-
-        <div class="timeline-tracks" id="timelineTracks">
-          <!-- Rendered dynamically by app.js -->
-          <div class="track-row video-track" id="videoTrackRow">
-            <div class="track-label">Video</div>
-            <div class="track-bars" id="videoTrackBars"></div>
-          </div>
-          <div class="track-row caption-track" id="captionTrackRow">
-            <div class="track-label">Captions</div>
-            <div class="track-bars" id="captionTrackBars"></div>
-          </div>
-          <div class="track-row audio-track" id="audioTrackRow">
-            <div class="track-label">Audio</div>
-            <div class="track-bars" id="audioTrackBars"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Right Column: Interactive Chat, Instructions, & Transcript Pane -->
-    <section class="sidebar-section">
-      <div class="sidebar-tabs">
-        <button class="tab-btn active" data-tab="chat">Edits & Responses</button>
-        <button class="tab-btn" data-tab="transcript">Interactive Transcript</button>
-        <button class="tab-btn" data-tab="history">History Log (<span id="historyCount">0</span>)</button>
-      </div>
-
-      <!-- Tab 1: Chat & Instruction Stream -->
-      <div class="tab-content active" id="chatTab">
-        <div class="chat-stream" id="chatStream">
-          <!-- Intro welcome bubble -->
-          <div class="chat-bubble system-bubble">
-            <div class="bubble-header">
-              <span class="bubble-author">IncuBrix Assistant</span>
-              <span class="bubble-time">Ready</span>
-            </div>
-            <div class="bubble-body">
-              Type any editing command below (e.g. <em>"Cut the first 30 seconds"</em>, <em>"Add caption 'Welcome!'"</em>, <em>"Remove filler words"</em>). Edits stick to immutable words!
+            <span class="timeline-dur" id="tlDurationStat">10.00s</span>
+            <div class="zoom-controls">
+              <button id="zoomOutBtn" class="btn-zoom">-</button>
+              <span class="zoom-icon">🔍</span>
+              <button id="zoomInBtn" class="btn-zoom">+</button>
             </div>
           </div>
         </div>
 
-        <!-- Suggestion Chips -->
-        <div class="chips-container" id="suggestionChips">
-          <button class="chip" data-cmd="Add captions fully">Add captions fully</button>
-          <button class="chip" data-cmd="Add a caption 'Welcome!' when I say welcome to the channel">Caption "Welcome!"</button>
-          <button class="chip" data-cmd="Cut the first 30 seconds">Cut first 30s</button>
-          <button class="chip" data-cmd="Remove the part about pricing">Remove pricing</button>
-          <button class="chip" data-cmd="Speed up from 1:00 to 1:30 by 2x">2x Speed</button>
-          <button class="chip" data-cmd="Actually, put the intro back">Put intro back</button>
-          <button class="chip" data-cmd="remove filler words">Remove fillers</button>
-          <button class="chip" data-cmd="remove silences longer than 1 second">Remove silences</button>
-        </div>
+        <!-- Multi-Track Timeline Canvas -->
+        <div class="multi-track-timeline" id="multiTrackTimeline">
+          <!-- Time Ruler with Draggable Orange Playhead -->
+          <div class="timeline-ruler" id="timelineRuler">
+            <div class="ruler-ticks" id="rulerTicks"></div>
+            <div class="playhead" id="playhead">
+              <div class="playhead-handle"></div>
+              <div class="playhead-line"></div>
+            </div>
+          </div>
 
-        <!-- Input Box -->
-        <form class="prompt-form" id="promptForm">
-          <input
-            type="text"
-            id="promptInput"
-            class="prompt-input"
-            placeholder="Type your video instruction..."
-            autocomplete="off"
-            required
-          >
-          <button type="submit" id="sendBtn" class="btn btn-primary send-btn">
-            <span>Apply</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          </button>
-        </form>
+          <!-- Timeline Track Lanes -->
+          <div class="track-lanes-wrapper" id="trackLanesWrapper">
+            <!-- Video Track V1 -->
+            <div class="track-lane video-lane" id="videoTrackLane">
+              <div class="lane-header">
+                <span class="lane-title">V1</span>
+                <span class="lane-type">Video</span>
+              </div>
+              <div class="lane-body" id="videoTrackBars"></div>
+            </div>
+
+            <!-- Effect Track FX -->
+            <div class="track-lane effect-lane" id="effectTrackLane">
+              <div class="lane-header">
+                <span class="lane-title">FX</span>
+                <span class="lane-type">Effects</span>
+              </div>
+              <div class="lane-body" id="effectTrackBars"></div>
+            </div>
+
+            <!-- Audio Track A1 with Waveform -->
+            <div class="track-lane audio-lane" id="audioTrackLane">
+              <div class="lane-header">
+                <span class="lane-title">A1</span>
+                <span class="lane-type">Audio</span>
+              </div>
+              <div class="lane-body" id="audioTrackBars">
+                <canvas id="waveformCanvas" class="waveform-canvas"></canvas>
+              </div>
+            </div>
+
+            <!-- Captions Track T1 -->
+            <div class="track-lane caption-lane" id="captionTrackLane">
+              <div class="lane-header">
+                <span class="lane-title">T1</span>
+                <span class="lane-type">Text</span>
+              </div>
+              <div class="lane-body" id="captionTrackBars"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Docked Bottom Smart AI Natural Language Bar -->
+  <footer class="ai-prompt-dock">
+    <div class="prompt-chips-row" id="suggestionChips">
+      <button class="chip" data-cmd="Add captions fully">✨ Auto Caption</button>
+      <button class="chip" data-cmd="Add vibration flash effect">⚡ Vibration Flash</button>
+      <button class="chip" data-cmd="Cut the first 5 seconds">✂️ Cut First 5s</button>
+      <button class="chip" data-cmd="remove silences longer than 1 second">🔇 Remove Silences</button>
+      <button class="chip" data-cmd="Make it 9:16">📱 Make 9:16 Reels</button>
+      <button class="chip" data-cmd="Speed up from 1:00 to 1:30 by 2x">⏩ Speed 2x</button>
+      <button class="chip" data-cmd="Suggest edits to make this video viral">💬 AI Advice</button>
+    </div>
+
+    <form class="prompt-form" id="promptForm">
+      <div class="prompt-input-wrapper">
+        <span class="sparkle-icon">✨</span>
+        <input
+          type="text"
+          id="promptInput"
+          class="prompt-input"
+          placeholder="Ask AI to edit anything (e.g. 'Cut first 5s', 'Add vibration flash', 'Auto caption fully', 'Make 9:16 reels')..."
+          autocomplete="off"
+          required
+        >
+        <button type="submit" id="sendBtn" class="btn btn-primary send-btn">
+          <span>Apply</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
       </div>
+    </form>
+  </footer>
 
-      <!-- Tab 2: Interactive Transcript Pane -->
-      <div class="tab-content" id="transcriptTab">
-        <div class="transcript-header">
-          <span class="transcript-count" id="transcriptWordCount">0 words</span>
-          <span class="transcript-hint">Click any word to seek</span>
-        </div>
-        <div class="transcript-words-container" id="transcriptWordsContainer">
-          <!-- Populated dynamically -->
-        </div>
-      </div>
-
-      <!-- Tab 3: History & Undo Groups -->
-      <div class="tab-content" id="historyTab">
-        <div class="history-list" id="historyList">
-          <div class="empty-state">No edits applied yet.</div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Interactive Clarification Modal (Brief §Needs Clarification) -->
+  <!-- Clarification Modal -->
   <div class="modal-backdrop hidden" id="clarificationModal">
     <div class="modal-card glass-panel">
       <div class="modal-header">
@@ -204,9 +447,7 @@
         <h3>Clarification Required</h3>
       </div>
       <p class="modal-question" id="modalQuestionText">Which mention did you want to cut?</p>
-      <div class="modal-options" id="modalOptionsContainer">
-        <!-- Option buttons generated dynamically -->
-      </div>
+      <div class="modal-options" id="modalOptionsContainer"></div>
       <div class="modal-custom-reply">
         <input type="text" id="modalCustomInput" class="prompt-input" placeholder="Or type custom clarification...">
         <button id="modalCustomSubmit" class="btn btn-secondary">Submit</button>
@@ -240,6 +481,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=2.4"></script>
+  <script src="/static/app.js?v=3.0"></script>
 </body>
 </html>

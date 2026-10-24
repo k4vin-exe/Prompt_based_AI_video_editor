@@ -562,3 +562,102 @@ def play_file_in_player(payload: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/api/v1/projects/{project_id}/clips", tags=["Clips"])
+def list_project_clips(project_id: str):
+    """List all media clips available in this project's media bin."""
+    proj = state.get_project(project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Ensure primary clip is always present
+    if not any(c.get("clip_id") == "clip_primary" for c in proj.session.clips):
+        primary = {
+            "clip_id": "clip_primary",
+            "name": os.path.basename(proj.video_path) if proj.video_path else "main_video.mp4",
+            "path": proj.video_path,
+            "duration_s": round(proj.metadata.duration_s, 2) if proj.metadata else 0.0,
+            "primary": True,
+            "width": proj.metadata.width if proj.metadata else 1920,
+            "height": proj.metadata.height if proj.metadata else 1080,
+            "fps": round(proj.metadata.fps, 1) if proj.metadata else 30.0,
+        }
+        proj.session.clips.insert(0, primary)
+
+    return {
+        "project_id": project_id,
+        "clips": proj.session.clips,
+        "total": len(proj.session.clips),
+    }
+
+
+@router.post("/api/v1/projects/{project_id}/clips", tags=["Clips"])
+async def add_project_clip(
+    project_id: str,
+    file: Optional[UploadFile] = File(None),
+    clip_name: Optional[str] = Form(None),
+):
+    """Upload and attach a new video or audio clip to the project media bin."""
+    proj = state.get_project(project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    clip_id = f"clip_{uuid.uuid4().hex[:8]}"
+    uploads_dir = os.path.abspath("data/uploads")
+    os.makedirs(uploads_dir, exist_ok=True)
+
+    if file:
+        filename = file.filename or f"{clip_id}.mp4"
+        save_path = os.path.join(uploads_dir, f"{clip_id}_{filename}")
+        with open(save_path, "wb") as f_out:
+            shutil.copyfileobj(file.file, f_out)
+    else:
+        filename = clip_name or f"clip_{len(proj.session.clips)+1}.mp4"
+        save_path = os.path.join(uploads_dir, filename)
+        # Create lightweight placeholder if no content
+        if not os.path.exists(save_path):
+            with open(save_path, "wb") as f_out:
+                f_out.write(b"")
+
+    # Probe duration if valid media
+    dur_s = 10.0
+    width = 1920
+    height = 1080
+    try:
+        if os.path.exists(save_path) and os.path.getsize(save_path) > 1024:
+            m = probe_video(save_path)
+            dur_s = round(m.duration_s, 2)
+            width = m.width
+            height = m.height
+    except Exception:
+        pass
+
+    clip_record = {
+        "clip_id": clip_id,
+        "name": filename,
+        "path": save_path,
+        "duration_s": dur_s,
+        "primary": False,
+        "width": width,
+        "height": height,
+        "fps": 30.0,
+    }
+    proj.session.clips.append(clip_record)
+
+    return {
+        "status": "created",
+        "clip": clip_record,
+        "total_clips": len(proj.session.clips),
+    }
+
+
+@router.delete("/api/v1/projects/{project_id}/clips/{clip_id}", tags=["Clips"])
+def delete_project_clip(project_id: str, clip_id: str):
+    """Delete a clip from the project media bin."""
+    proj = state.get_project(project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    proj.session.clips = [c for c in proj.session.clips if c.get("clip_id") != clip_id]
+    return {"status": "deleted", "clip_id": clip_id, "remaining": len(proj.session.clips)}
+
+

@@ -435,6 +435,62 @@ def _rule_parse_single(text: str) -> Dict[str, Any]:
                     "params": {"start": expr, "end": "end", "policy": policy, "raw_text": t},
                 }
 
+    # 16. Visual Effects: "Add vibration flash", "add flash effect", "cinematic filter", "glitch", "blur", "vintage"
+    if re.search(r"\b(vibration\s+flash|flash(?:\s+effect)?|cinematic(?:\s+filter|\s+grade)?|glitch|vintage|blur|black\s+and\s+white|vignette)\b", tl):
+        eff_type = "vibration_flash"
+        if "cinematic" in tl:
+            eff_type = "cinematic_grade"
+        elif "glitch" in tl:
+            eff_type = "glitch"
+        elif "vintage" in tl:
+            eff_type = "vintage_vhs"
+        elif "blur" in tl:
+            eff_type = "blur"
+        elif "black and white" in tl:
+            eff_type = "black_white"
+        elif "vignette" in tl:
+            eff_type = "vignette"
+        return {
+            "intent": "add_effect",
+            "params": {"effect_type": eff_type, "name": eff_type.replace("_", " ").title(), "raw_text": t},
+        }
+
+    # 17. Aspect Ratio / Framing: "Make it 9:16 reels", "Crop to 9:16", "16:9", "tiktok format", "square 1:1"
+    if re.search(r"\b(9:16|16:9|1:1|4:5|reels|tiktok|shorts|portrait|landscape|square)\b", tl):
+        ratio = "9:16"
+        if "16:9" in tl or "landscape" in tl:
+            ratio = "16:9"
+        elif "1:1" in tl or "square" in tl:
+            ratio = "1:1"
+        elif "4:5" in tl:
+            ratio = "4:5"
+        return {
+            "intent": "aspect_ratio",
+            "params": {"ratio": ratio, "raw_text": t},
+        }
+
+    # 18. Split: "Split at 0:15", "Split clip at 10s", "Cut video into two at 0:20"
+    split_match = re.search(r"(?:split|divide)(?:\s+(?:the\s+)?(?:video|clip))?(?:\s+at|\s+around)?\s+([0-9a-z:\s]+)", tl)
+    if split_match:
+        return {
+            "intent": "split_clip",
+            "params": {"at_time": split_match.group(1).strip(), "raw_text": t},
+        }
+
+    # 19. Add / Append Clips: "Add another clip", "Add clip 2", "Append clip", "Import footage"
+    if re.search(r"\b(?:add|append|insert|import)\s+(?:another\s+|new\s+|second\s+|extra\s+)?(?:clip|video|media|file|footage)\b", tl):
+        return {
+            "intent": "add_clip",
+            "params": {"action": "append", "raw_text": t},
+        }
+
+    # 20. Conversational AI Assistant / Creative Advice: "How can I make this video better?", "Give me hook ideas", "Summarize"
+    if re.search(r"^(?:how|what|why|can\s+you|could\s+you|give\s+me|tell\s+me|suggest|tips?|ideas?|summarize|analyze)\b", tl) or "?" in t:
+        return {
+            "intent": "ai_consult",
+            "params": {"prompt": t, "raw_text": t},
+        }
+
     return {"intent": "unknown", "params": {"raw_text": t}}
 
 

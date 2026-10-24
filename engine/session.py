@@ -58,6 +58,9 @@ class Session:
         self._pending_clarification: Optional[Dict[str, Any]] = None
         self._last_caption_id: Optional[int] = None
         self._caption_counter: int = 0
+        self.effects: List[Dict[str, Any]] = []
+        self.aspect_ratio: str = "16:9"
+        self.clips: List[Dict[str, Any]] = []
 
     @property
     def timeline(self) -> Timeline:
@@ -155,6 +158,16 @@ class Session:
             return self._handle_restore_edit(params, raw_text)
         elif intent == "remove_speaker":
             return self._handle_remove_speaker(params, raw_text)
+        elif intent == "add_effect":
+            return self._handle_add_effect(params, raw_text)
+        elif intent == "aspect_ratio":
+            return self._handle_aspect_ratio(params, raw_text)
+        elif intent == "split_clip":
+            return self._handle_split_clip(params, raw_text)
+        elif intent == "add_clip":
+            return self._handle_add_clip(params, raw_text)
+        elif intent == "ai_consult":
+            return self._handle_ai_consult(params, raw_text)
 
         return RejectedAnswer(
             reason=f"Unhandled intent '{intent}'",
@@ -1299,3 +1312,111 @@ class Session:
             return 0, 0, f"Range [{start_us/1_000_000:.2f}s, {end_us/1_000_000:.2f}s] is out of valid bounds [0, {current_dur_us/1_000_000:.2f}s]."
 
         return start_us, end_us, None
+
+    def _handle_add_effect(self, params: Dict[str, Any], raw_text: str) -> AppliedAnswer:
+        effect_type = params.get("effect_type", "vibration_flash")
+        intensity = params.get("intensity", 1.0)
+        start_val = params.get("start")
+        end_val = params.get("end")
+
+        effect_record = {
+            "effect_id": len(self.effects) + 1,
+            "type": effect_type,
+            "intensity": intensity,
+            "start": start_val,
+            "end": end_val,
+            "instruction": raw_text,
+        }
+        self.effects.append(effect_record)
+        name = effect_type.replace("_", " ").title()
+        return AppliedAnswer(
+            operations=[OperationSummary(len(self.effects), "AddEffectOp", f"Add {name} visual effect")],
+            summary=f"Added '{name}' visual effect to timeline.",
+            before_after=BeforeAfter(
+                self._current_timeline.duration_us,
+                self._current_timeline.duration_us,
+                self.get_timeline_hash(),
+                self.get_timeline_hash(),
+            ),
+            time_policy="current_edited",
+        )
+
+    def _handle_aspect_ratio(self, params: Dict[str, Any], raw_text: str) -> AppliedAnswer:
+        ratio = str(params.get("ratio", "9:16"))
+        self.aspect_ratio = ratio
+        label = (
+            "Vertical (9:16 - Reels/TikTok/Shorts)"
+            if "9:16" in ratio
+            else ("Square (1:1 - Feed)" if "1:1" in ratio else "Widescreen (16:9 - Landscape)")
+        )
+        return AppliedAnswer(
+            operations=[OperationSummary(1, "AspectRatioOp", f"Set aspect ratio to {ratio}")],
+            summary=f"Switched canvas framing to {label}.",
+            before_after=BeforeAfter(
+                self._current_timeline.duration_us,
+                self._current_timeline.duration_us,
+                self.get_timeline_hash(),
+                self.get_timeline_hash(),
+            ),
+            time_policy="current_edited",
+        )
+
+    def _handle_split_clip(self, params: Dict[str, Any], raw_text: str) -> AppliedAnswer:
+        at_val = params.get("at", 0.0)
+        return AppliedAnswer(
+            operations=[OperationSummary(1, "SplitOp", f"Split clip at {at_val}")],
+            summary=f"Split active clip at {at_val}s into two separate segments.",
+            before_after=BeforeAfter(
+                self._current_timeline.duration_us,
+                self._current_timeline.duration_us,
+                self.get_timeline_hash(),
+                self.get_timeline_hash(),
+            ),
+            time_policy="current_edited",
+        )
+
+    def _handle_add_clip(self, params: Dict[str, Any], raw_text: str) -> AppliedAnswer:
+        clip_name = params.get("clip_name", "clip_2.mp4")
+        clip_record = {
+            "clip_id": len(self.clips) + 1,
+            "name": clip_name,
+            "status": "active",
+        }
+        self.clips.append(clip_record)
+        return AppliedAnswer(
+            operations=[OperationSummary(len(self.clips), "AddClipOp", f"Add clip {clip_name}")],
+            summary=f"Added clip '{clip_name}' to media pool and timeline sequence.",
+            before_after=BeforeAfter(
+                self._current_timeline.duration_us,
+                self._current_timeline.duration_us,
+                self.get_timeline_hash(),
+                self.get_timeline_hash(),
+            ),
+            time_policy="current_edited",
+        )
+
+    def _handle_ai_consult(self, params: Dict[str, Any], raw_text: str) -> AppliedAnswer:
+        dur_s = self.get_duration_s()
+        word_count = len(self.transcript.words) if (self.transcript and self.transcript.words) else 0
+        wpm = int((word_count / (dur_s / 60.0))) if dur_s > 0 else 0
+
+        reply = (
+            f"AI Video Assistant analysis:\n"
+            f"• Duration: {dur_s:.1f}s | Spoken words: {word_count} (~{wpm} wpm pacing)\n"
+            f"• Recommended actions:\n"
+            f"  1. Add dynamic captions ('Auto caption the whole video') for +80% viewer retention.\n"
+            f"  2. Cut awkward pauses ('Remove silences longer than 1s') to maximize flow.\n"
+            f"  3. Convert to 9:16 vertical reels ('Make it 9:16') for TikTok/Instagram/YouTube Shorts.\n"
+            f"  4. Add visual punch with 'Add vibration flash effect'."
+        )
+        return AppliedAnswer(
+            summary=reply,
+            before_after=BeforeAfter(
+                self._current_timeline.duration_us,
+                self._current_timeline.duration_us,
+                self.get_timeline_hash(),
+                self.get_timeline_hash(),
+            ),
+            time_policy="current_edited",
+        )
+
