@@ -468,3 +468,97 @@ def download_project_video(project_id: str):
         pass
     return FileResponse(video_out_path, media_type="video/mp4", filename="edited_video.mp4")
 
+
+@router.post("/api/v1/projects/{project_id}/save-local", tags=["Projects"])
+def save_project_video_local(project_id: str, open_folder: bool = True):
+    """Save the latest rendered MP4 directly to the user's Downloads and outputs directory, and optionally reveal in File Explorer."""
+    from pathlib import Path
+    import subprocess
+    import logging
+    logger = logging.getLogger("incubrix.api")
+
+    proj = state.get_project(project_id)
+    if not proj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROJECT_NOT_FOUND", "message": f"Project '{project_id}' not found.", "retryable": False, "details": {}},
+        )
+
+    # Find latest rendered file or render now
+    latest_job = state.get_latest_job_for_project(project_id)
+    video_source = None
+    if latest_job and latest_job.results and "video_url" in latest_job.results:
+        candidate = os.path.join(settings.storage_dir, latest_job.job_id, "final_video.mp4")
+        if os.path.exists(candidate):
+            video_source = candidate
+
+    if not video_source:
+        job_id = f"job_render_{uuid.uuid4().hex[:10]}"
+        job_dir = os.path.join(settings.storage_dir, job_id)
+        os.makedirs(job_dir, exist_ok=True)
+        video_source = os.path.join(job_dir, "final_video.mp4")
+        render_timeline(proj.session.timeline, proj.video_path, video_source)
+
+    # 1. Save directly to Downloads/edited_video.mp4
+    dl_dir = os.path.expanduser("~/Downloads")
+    os.makedirs(dl_dir, exist_ok=True)
+    target_dl_path = os.path.join(dl_dir, "edited_video.mp4")
+    shutil.copyfile(video_source, target_dl_path)
+
+    # 2. Also save to outputs/edited_video.mp4
+    out_dir = os.path.abspath("outputs")
+    os.makedirs(out_dir, exist_ok=True)
+    target_out_path = os.path.join(out_dir, "edited_video.mp4")
+    shutil.copyfile(video_source, target_out_path)
+
+    # 3. Also save named file based on project
+    base_stem = Path(proj.video_path).stem if proj.video_path else "edited_video"
+    named_dl_path = os.path.join(dl_dir, f"{base_stem}_edited.mp4")
+    shutil.copyfile(video_source, named_dl_path)
+
+    size_bytes = os.path.getsize(target_dl_path)
+
+    if open_folder:
+        try:
+            # Highlight file in Windows File Explorer
+            subprocess.Popen(["explorer.exe", f"/select,{os.path.normpath(target_dl_path)}"])
+        except Exception as e:
+            logger.warning(f"Could not open explorer: {e}")
+
+    return {
+        "success": True,
+        "saved_path": target_dl_path,
+        "named_path": named_dl_path,
+        "filename": "edited_video.mp4",
+        "size_bytes": size_bytes,
+        "size_mb": round(size_bytes / (1024 * 1024), 2),
+    }
+
+
+@router.post("/api/v1/system/reveal-file", tags=["System"])
+def reveal_file_in_explorer(payload: Dict[str, Any]):
+    """Open Windows File Explorer with the specified file selected."""
+    import subprocess
+    path = payload.get("path")
+    if not path or not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        subprocess.Popen(["explorer.exe", f"/select,{os.path.normpath(path)}"])
+        return {"status": "ok", "path": path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/v1/system/play-file", tags=["System"])
+def play_file_in_player(payload: Dict[str, Any]):
+    """Open the MP4 file in the default Windows media player."""
+    path = payload.get("path")
+    if not path or not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        os.startfile(os.path.normpath(path))
+        return {"status": "ok", "path": path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+

@@ -153,9 +153,13 @@ function setupEventListeners() {
 
   // Modal download button
   if (dom.downloadVideoBtn) {
-    dom.downloadVideoBtn.addEventListener("click", (e) => {
+    dom.downloadVideoBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      if (state.projectId) {
+        const res = await saveAndRevealLocal(state.projectId, true);
+        if (res && res.success) appendExportSuccessMessage(res);
+      }
       if (state.lastRenderedVideoUrl) {
-        e.preventDefault();
         triggerFileDownload(state.lastRenderedVideoUrl, "final_video.mp4");
       }
     });
@@ -447,7 +451,11 @@ function appendRenderReadyMessage(videoUrl) {
   `;
   const dlBtn = bubble.querySelector(".chat-dl-btn");
   if (dlBtn) {
-    dlBtn.addEventListener("click", () => {
+    dlBtn.addEventListener("click", async () => {
+      if (state.projectId) {
+        const res = await saveAndRevealLocal(state.projectId, true);
+        if (res && res.success) appendExportSuccessMessage(res);
+      }
       triggerFileDownload(videoUrl, "edited_video.mp4");
     });
   }
@@ -841,7 +849,58 @@ async function pollRenderJob(jobId) {
   }, 400);
 }
 
-// ── Export & Download Helpers ───────────────────────────────────────────────
+async function saveAndRevealLocal(projectId, openFolder = true) {
+  try {
+    const res = await fetch(`/api/v1/projects/${projectId}/save-local?open_folder=${openFolder}`, {
+      method: "POST"
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    console.warn("save-local failed:", e);
+    return null;
+  }
+}
+
+function appendExportSuccessMessage(data) {
+  const bubble = document.createElement("div");
+  bubble.className = "chat-bubble system-bubble";
+  bubble.style.borderLeft = "3px solid var(--accent-emerald)";
+  bubble.innerHTML = `
+    <div class="bubble-header"><span class="bubble-author" style="color: var(--accent-emerald);">✓ Saved Directly to Windows Downloads</span></div>
+    <div class="bubble-body">
+      <div style="font-size: 0.88rem; margin-bottom: 0.5rem;">
+        File: <strong style="color: var(--text-primary);">${escapeHtml(data.saved_path)}</strong> (${data.size_mb} MB, MP4)
+      </div>
+      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+        <button class="btn btn-secondary btn-sm btn-open-folder" style="cursor: pointer;">📂 Reveal in File Explorer</button>
+        <button class="btn btn-primary btn-sm btn-play-video" style="cursor: pointer;">▶ Play in Windows Media Player</button>
+      </div>
+    </div>
+  `;
+  const folderBtn = bubble.querySelector(".btn-open-folder");
+  if (folderBtn) {
+    folderBtn.addEventListener("click", () => {
+      fetch("/api/v1/system/reveal-file", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: data.saved_path })
+      });
+    });
+  }
+  const playBtn = bubble.querySelector(".btn-play-video");
+  if (playBtn) {
+    playBtn.addEventListener("click", () => {
+      fetch("/api/v1/system/play-file", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: data.saved_path })
+      });
+    });
+  }
+  dom.chatStream.appendChild(bubble);
+  dom.chatStream.scrollTop = dom.chatStream.scrollHeight;
+}
 
 function triggerFileDownload(url, filename = "edited_video.mp4") {
   const saveFilename = filename.endsWith(".mp4") ? filename : `${filename}.mp4`;
@@ -860,9 +919,6 @@ function triggerFileDownload(url, filename = "edited_video.mp4") {
 
   appendSystemMessage(`⬇ Downloading MP4: "${saveFilename}"...`, "applied");
 
-  // Direct native anchor download:
-  // Using direct HTTP attachment ensures Chrome/Edge reads the Content-Disposition header
-  // and saves the file with the proper .mp4 extension instead of a blob UUID.
   const a = document.createElement("a");
   a.style.display = "none";
   a.href = downloadUrl;
@@ -881,14 +937,17 @@ async function handleExportMP4() {
     return;
   }
 
-  if (state.lastRenderedVideoUrl) {
-    await triggerFileDownload(state.lastRenderedVideoUrl, "edited_video.mp4");
-    return;
+  appendSystemMessage("🎬 Exporting MP4: rendering edited video with FFmpeg...", "applied");
+
+  // 1. Direct server-side save directly to C:\Users\arock\Downloads\edited_video.mp4 and reveal in Explorer
+  const saveRes = await saveAndRevealLocal(state.projectId, true);
+  if (saveRes && saveRes.success) {
+    appendExportSuccessMessage(saveRes);
   }
 
-  // If no rendered video yet, trigger background render flow or direct export
-  appendSystemMessage("Exporting MP4: rendering edited video with FFmpeg...", "applied");
-  await triggerFileDownload(`/api/v1/projects/${state.projectId}/download`, "edited_video.mp4");
+  // 2. Also trigger standard browser file download
+  const dlUrl = state.lastRenderedVideoUrl || `/api/v1/projects/${state.projectId}/download`;
+  triggerFileDownload(dlUrl, "edited_video.mp4");
 }
 
 function escapeHtml(str) {
