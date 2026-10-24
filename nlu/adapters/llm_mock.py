@@ -90,6 +90,9 @@ def _rule_based_intent(text: str) -> str:
     The NLU layer's real rule-based parser (nlu/rules.py) is more complete;
     this is just a last resort for the mock.
     """
+    if "INSTRUCTION:" in text:
+        text = text.split("INSTRUCTION:")[-1].strip()
+
     try:
         from nlu.parser import _rule_parse_single
         parsed = _rule_parse_single(text)

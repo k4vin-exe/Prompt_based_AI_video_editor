@@ -134,6 +134,8 @@ def _detect_policy(text: str) -> str:
 
 
 def _rule_parse_single(text: str) -> Dict[str, Any]:
+    if "INSTRUCTION:" in text:
+        text = text.split("INSTRUCTION:")[-1].strip()
     t = text.strip()
     tl = t.lower()
     policy = _detect_policy(t)
@@ -323,7 +325,7 @@ def _rule_parse_single(text: str) -> Dict[str, Any]:
         }
 
     # 14. Cut everything / whole video
-    if tl in ("cut everything", "remove everything", "delete everything", "cut the whole video", "remove the whole video"):
+    if re.search(r"\b(cut|remove|delete)\s+(everything|the\s+whole\s+video)\b", tl):
         return {
             "intent": "cut",
             "params": {"start": "0", "end": "end", "policy": policy, "raw_text": t},
@@ -333,8 +335,8 @@ def _rule_parse_single(text: str) -> Dict[str, Any]:
     topic_match = re.search(r"(?:remove|cut|delete|get\s+rid\s+of|take\s+out)\s+(?:everything\s+about\s+|the\s+part\s+about\s+|the\s+bit\s+about\s+|the\s+bit\s+where.+about\s+|the\s+section\s+about\s+|the\s+)?(.+?)(?:\s+part|\s+bit|\s+section|\s+discussion)?$", tl)
     if topic_match:
         candidate = topic_match.group(1).strip()
-        # Check if candidate is time-based
-        if not re.search(r"\b(first|last|\d+|second|seconds|minute|minutes)\b", candidate):
+        # Check if candidate is time-based or generic
+        if candidate not in ("everything", "the whole video", "all") and not re.search(r"\b(first|last|\d+|second|seconds|minute|minutes)\b", candidate):
             return {
                 "intent": "remove_topic",
                 "params": {"topic": candidate},

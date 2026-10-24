@@ -1,0 +1,1 @@
+{"intent": "cut", "params": {"start": "0", "end": "end", "policy": "current_edited", "raw_text": "cut everything"}}

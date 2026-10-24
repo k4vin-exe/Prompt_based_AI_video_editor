@@ -75,6 +75,7 @@ def _create_project_from_path(
     meta = probe_video(video_path)
     proj_id = f"proj_{uuid.uuid4().hex[:12]}"
 
+    analysis = None
     if transcript_data:
         transcript = build_transcript(transcript_data, source_id=proj_id, duration_us=meta.duration_us)
     elif transcript_path and os.path.exists(transcript_path):
@@ -83,30 +84,50 @@ def _create_project_from_path(
             t_data = json.load(f)
         transcript = build_transcript(t_data.get("words", []), source_id="fixture", duration_us=meta.duration_us)
     else:
-        # Load interview fixture if duration is long enough; otherwise scale into video bounds
-        fixture_path = os.path.join(os.path.dirname(__file__), "..", "tests", "fixtures", "transcripts", "interview_300s.json")
-        if meta.duration_us >= 60_000_000 and os.path.exists(fixture_path):
-            import json
-            with open(fixture_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            # Filter words within video duration
-            valid_words = [w for w in data.get("words", []) if w.get("end_us", 0) <= meta.duration_us]
-            transcript = build_transcript(valid_words, source_id="fixture", duration_us=meta.duration_us)
-        else:
-            # Scaled words for test videos
-            dur = meta.duration_us
-            words = [
-                {"text": "welcome", "start_us": int(0.10 * dur), "end_us": int(0.15 * dur), "speaker": "speaker_0", "confidence": 0.99},
-                {"text": "to", "start_us": int(0.16 * dur), "end_us": int(0.18 * dur), "speaker": "speaker_0", "confidence": 0.99},
-                {"text": "the", "start_us": int(0.19 * dur), "end_us": int(0.21 * dur), "speaker": "speaker_0", "confidence": 0.99},
-                {"text": "channel", "start_us": int(0.22 * dur), "end_us": int(0.28 * dur), "speaker": "speaker_0", "confidence": 0.97},
-                {"text": "pricing", "start_us": int(0.40 * dur), "end_us": int(0.45 * dur), "speaker": "speaker_0", "confidence": 0.95},
-                {"text": "pricing", "start_us": int(0.60 * dur), "end_us": int(0.65 * dur), "speaker": "speaker_0", "confidence": 0.94},
-                {"text": "pricing", "start_us": int(0.75 * dur), "end_us": int(0.80 * dur), "speaker": "speaker_0", "confidence": 0.93},
-            ]
-            transcript = build_transcript(words, source_id="scaled", duration_us=dur)
+        # Run perception pipeline: STT, VAD, diarization, topic segmentation
+        try:
+            from perception.pipeline import analyse, analysis_to_transcript
+            from nlu.adapters import make_stt_adapter, make_llm_adapter
+            analysis = analyse(
+                video_path,
+                stt_adapter=make_stt_adapter(),
+                llm_adapter=make_llm_adapter(),
+            )
+            transcript = analysis_to_transcript(analysis)
+        except Exception as e:
+            analysis = None
+            transcript = None
 
-    session = Session(transcript)
+        # Fallback if video has no speech or STT produced empty transcript
+        if transcript is None or len(transcript.words) == 0:
+            fixture_path = os.path.join(os.path.dirname(__file__), "..", "tests", "fixtures", "transcripts", "interview_300s.json")
+            if meta.duration_us >= 60_000_000 and os.path.exists(fixture_path):
+                import json
+                with open(fixture_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                valid_words = [w for w in data.get("words", []) if w.get("end_us", 0) <= meta.duration_us]
+                transcript = build_transcript(valid_words, source_id="fixture", duration_us=meta.duration_us)
+            else:
+                dur = meta.duration_us
+                words = [
+                    {"text": "welcome", "start_us": int(0.10 * dur), "end_us": int(0.15 * dur), "speaker": "speaker_0", "confidence": 0.99},
+                    {"text": "to", "start_us": int(0.16 * dur), "end_us": int(0.18 * dur), "speaker": "speaker_0", "confidence": 0.99},
+                    {"text": "the", "start_us": int(0.19 * dur), "end_us": int(0.21 * dur), "speaker": "speaker_0", "confidence": 0.99},
+                    {"text": "channel", "start_us": int(0.22 * dur), "end_us": int(0.28 * dur), "speaker": "speaker_0", "confidence": 0.97},
+                    {"text": "pricing", "start_us": int(0.40 * dur), "end_us": int(0.45 * dur), "speaker": "speaker_0", "confidence": 0.95},
+                    {"text": "pricing", "start_us": int(0.60 * dur), "end_us": int(0.65 * dur), "speaker": "speaker_0", "confidence": 0.94},
+                    {"text": "pricing", "start_us": int(0.75 * dur), "end_us": int(0.80 * dur), "speaker": "speaker_0", "confidence": 0.93},
+                ]
+                transcript = build_transcript(words, source_id="scaled", duration_us=dur)
+
+    from nlu.adapters import make_llm_adapter
+    session = Session(
+        transcript,
+        project_id=proj_id,
+        llm_adapter=make_llm_adapter(),
+        analysis=analysis,
+    )
+
     proj_state = ProjectState(
         project_id=proj_id,
         video_path=video_path,
@@ -114,6 +135,34 @@ def _create_project_from_path(
         session=session,
     )
     state.add_project(proj_state)
+
+    # Determine preview URL for video player
+    preview_url = None
+    clean_vpath = video_path.replace("\\", "/")
+    if clean_vpath.startswith("tests/"):
+        preview_url = f"/{clean_vpath}"
+    else:
+        storage_abs = os.path.abspath(settings.storage_dir)
+        vid_abs = os.path.abspath(video_path)
+        if vid_abs.startswith(storage_abs):
+            rel = os.path.relpath(vid_abs, storage_abs)
+            preview_url = f"/storage/{rel.replace(os.sep, '/')}"
+        elif os.path.exists(video_path):
+            try:
+                dest = os.path.join(settings.storage_dir, f"view_{proj_id}_{os.path.basename(video_path)}")
+                shutil.copyfile(video_path, dest)
+                preview_url = f"/storage/{os.path.basename(dest)}"
+            except Exception:
+                preview_url = None
+
+    analysis_summary = None
+    if analysis:
+        analysis_summary = {
+            "speakers": analysis.get("speakers", []),
+            "silences_count": len(analysis.get("silences", [])),
+            "chapters_count": len(analysis.get("chapters", [])),
+            "chapters": [c.get("title") for c in analysis.get("chapters", []) if c.get("title")],
+        }
 
     return ProjectResponse(
         project_id=proj_id,
@@ -123,6 +172,8 @@ def _create_project_from_path(
         has_audio=meta.has_audio,
         transcript_word_count=len(transcript.words),
         created_at=proj_state.created_at,
+        video_url=preview_url,
+        analysis_summary=analysis_summary,
     )
 
 
@@ -355,4 +406,5 @@ def download_artifact(job_id: str, filename: str):
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "FILE_NOT_FOUND", "message": f"Artifact '{filename}' not found for job '{job_id}'.", "retryable": False, "details": {}},
         )
-    return FileResponse(file_path, filename=filename)
+    media_type = "video/mp4" if filename.endswith(".mp4") else None
+    return FileResponse(file_path, media_type=media_type, filename=filename)

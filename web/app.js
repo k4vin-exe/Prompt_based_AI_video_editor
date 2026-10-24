@@ -22,6 +22,8 @@ const state = {
 
 const dom = {
   projectSelect: document.getElementById("projectSelect"),
+  uploadVideoBtn: document.getElementById("uploadVideoBtn"),
+  videoFileInput: document.getElementById("videoFileInput"),
   undoBtn: document.getElementById("undoBtn"),
   redoBtn: document.getElementById("redoBtn"),
   renderBtn: document.getElementById("renderBtn"),
@@ -91,6 +93,20 @@ function setupEventListeners() {
     loadSelectedProject();
   });
 
+  // Video Upload
+  if (dom.uploadVideoBtn && dom.videoFileInput) {
+    dom.uploadVideoBtn.addEventListener("click", () => {
+      dom.videoFileInput.click();
+    });
+
+    dom.videoFileInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      await handleVideoUpload(file);
+      dom.videoFileInput.value = "";
+    });
+  }
+
   // Prompt submission
   dom.promptForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -135,10 +151,75 @@ function setupEventListeners() {
   });
 }
 
+// ── Video Upload & AI Analysis Flow ──────────────────────────────────────────
+
+async function handleVideoUpload(file) {
+  appendSystemMessage(`Analyzing "${file.name}" with AI Perception Pipeline (speech-to-text transcription, silence detection, topic segmentation)...`);
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res = await fetch("/api/v1/projects", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData?.error?.message || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    state.projectId = data.project_id;
+    state.videoDurationS = data.duration_s;
+
+    // Add new custom project to dropdown
+    const opt = document.createElement("option");
+    opt.value = data.project_id;
+    opt.textContent = `${file.name} (${data.duration_s.toFixed(1)}s, Custom Upload)`;
+    dom.projectSelect.appendChild(opt);
+    dom.projectSelect.value = data.project_id;
+
+    // Load preview in player
+    const previewUrl = data.video_url || URL.createObjectURL(file);
+    dom.videoPlayer.src = previewUrl;
+    dom.videoPlayer.load();
+
+    await refreshTimeline();
+
+    const summary = data.analysis_summary || {};
+    const silencesCount = summary.silences_count || 0;
+    const chaptersCount = summary.chapters_count || 0;
+    const speakers = (summary.speakers || []).join(", ") || "Speaker 0";
+
+    appendSystemMessage(
+      `AI Perception Analysis complete for "${file.name}"!\n` +
+      `• Words: ${data.transcript_word_count} words transcribed\n` +
+      `• Duration: ${data.duration_s.toFixed(2)}s\n` +
+      `• Silence gaps: ${silencesCount} detected\n` +
+      `• Chapters: ${chaptersCount} topics\n` +
+      `• Speakers: ${speakers}\n\n` +
+      `Type any natural-language prompt below to edit (e.g. "Cut the first 5 seconds", "Remove filler words", "Speed up by 2x", "Add a caption 'Welcome!'", etc.)!`,
+      "applied"
+    );
+  } catch (err) {
+    appendSystemMessage(`Video analysis failed: ${err.message}`, "rejected");
+  }
+}
+
 // ── Project Loading ──────────────────────────────────────────────────────────
 
 async function loadSelectedProject() {
   const choice = dom.projectSelect.value;
+
+  // Custom project already uploaded
+  if (choice && choice.startsWith("proj_")) {
+    state.projectId = choice;
+    await refreshTimeline();
+    return;
+  }
+
   let payload = { video_url: "tests/fixtures/sync_oracle_test.mp4" };
 
   if (choice === "interview") {
