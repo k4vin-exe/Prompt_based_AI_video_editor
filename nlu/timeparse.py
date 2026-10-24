@@ -186,6 +186,23 @@ def parse_time(expr: str, current_duration_us: Optional[int] = None) -> ParsedTi
             original=expr,
         )
 
+    # 6. Positional anchors: "start", "the start", "beginning", "end", "the end", "outro", "intro"
+    el = expr.strip().lower()
+    if el in ("start", "the start", "beginning", "the beginning", "intro", "the intro", "opening", "the opening"):
+        return ParsedTime(
+            value_us=0,
+            is_relative=False,
+            relative_anchor="start",
+            original=expr,
+        )
+    if el in ("end", "the end", "ending", "the ending", "outro", "the outro", "tail", "the tail"):
+        return ParsedTime(
+            value_us=0,
+            is_relative=True,
+            relative_anchor="end",
+            original=expr,
+        )
+
     raise TimeParseError(f"Cannot parse time expression: {expr!r}")
 
 

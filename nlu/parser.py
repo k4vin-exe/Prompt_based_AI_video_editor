@@ -376,6 +376,20 @@ def _rule_parse_single(text: str) -> Dict[str, Any]:
 
     # Cut: "cut the first 30 seconds", "remove 0:30-0:40", "cut from 1:00 to 1:30", "cut 0:30 to 1:00"
     if re.search(r"\b(cut|remove|delete|trim|get\s+rid\s+of|take\s+out)\b", tl):
+        # Outro / trailing screen: "remove the white screen at the end", "cut the outro", "cut the end", "remove blank screen at the end"
+        if re.search(r"\b(cut|remove|delete|trim|get\s+rid\s+of|take\s+out)\b.*\b(at\s+the\s+end|at\s+the\s+tail|at\s+the\s+outro|the\s+outro|the\s+ending)\b", tl):
+            return {
+                "intent": "cut",
+                "params": {"start": "the end", "end": "end", "policy": policy, "raw_text": t},
+            }
+
+        # Intro / start screen: "remove the black screen at the start", "cut the intro", "remove the beginning"
+        if re.search(r"\b(cut|remove|delete|trim|get\s+rid\s+of|take\s+out)\b.*\b(at\s+the\s+start|at\s+the\s+beginning|at\s+the\s+intro|the\s+intro|the\s+beginning|the\s+start)\b", tl):
+            return {
+                "intent": "cut",
+                "params": {"start": "0", "end": "the start", "policy": policy, "raw_text": t},
+            }
+
         # Range with dash or "to": "0:30-0:40" or "0:30 to 1:00" or "from 1:00 to 1:30"
         range_match = re.search(r"(?:from\s+)?(\d+:\d+|\d+)\s*(?:-|to)\s*(\d+:\d+|\d+)", tl)
         if range_match:
@@ -470,6 +484,9 @@ def _llm_parse(
         "- Output ONLY valid JSON. No explanation, no markdown, no extra text.\n"
         "- For time references like '1:30', '30 seconds', 'the last 10 seconds', \n"
         "  output the string as-is in start/end fields.\n"
+        "- For cuts of the ending, outro, or blank/white/black screen at the end: set start='the end', end='end'.\n"
+        "- For cuts of the intro or blank/black/white screen at the start: set start='0', end='the start'.\n"
+        "- For 'the last X seconds': set start='the last X seconds', end='end'.\n"
         "- If a phrase or topic is ambiguous (mentioned multiple times), set \n"
         "  occurrence: null to trigger a clarification question.\n"
         "- policy is 'current_edited' (default) or 'original_source'.\n"

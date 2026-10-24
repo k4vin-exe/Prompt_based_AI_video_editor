@@ -244,7 +244,7 @@ class Session:
 
         # Parse start and end times
         current_dur_us = self._current_timeline.duration_us
-        start_us, end_us, err = self._resolve_time_range(start_raw, end_raw, policy, current_dur_us)
+        start_us, end_us, err = self._resolve_time_range(start_raw, end_raw, policy, current_dur_us, raw_text=raw_text)
         if err:
             return RejectedAnswer(reason=err, error_code="TIME_OUT_OF_RANGE", original_instruction=raw_text)
 
@@ -1188,31 +1188,91 @@ class Session:
     # ── Helper: Resolve time range ───────────────────────────────────────────
 
     def _resolve_time_range(
-        self, start_val: Any, end_val: Any, policy: str, current_dur_us: int
+        self, start_val: Any, end_val: Any, policy: str, current_dur_us: int, raw_text: str = ""
     ) -> Tuple[int, int, Optional[str]]:
-        """Parse start and end expressions into integer microseconds."""
+        """Parse start and end expressions into integer microseconds with smart positional resolution."""
+        start_str = str(start_val or "").strip().lower()
+        end_str = str(end_val or "").strip().lower()
+        raw_str = (raw_text or "").strip().lower()
+
+        end_terms = {
+            "the end", "end", "the ending", "ending", "outro", "the outro", "tail", "the tail",
+            "white screen at the end", "black screen at the end", "blank screen at the end",
+            "the white screen", "the black screen", "the blank screen", "screen at the end",
+        }
+        start_terms = {
+            "the start", "start", "the beginning", "beginning", "intro", "the intro", "opening", "the opening",
+            "white screen at the start", "black screen at the start", "blank screen at the start",
+            "screen at the start", "the black screen", "the white screen", "the blank screen",
+        }
+
+        # Whole video cut detection (e.g. "cut everything", "remove the whole video")
+        is_whole_video = (
+            (start_val in ("0", 0, None) and end_val in ("end", "the end"))
+            and any(kw in raw_str for kw in ["everything", "whole video", "all of it", "entire video", "the whole"])
+        )
+        if is_whole_video:
+            return 0, current_dur_us, None
+
+        has_outro_phrase = any(kw in raw_str for kw in [
+            "at the end", "in the end", "at the tail", "outro", "ending",
+            "white screen", "black screen", "blank screen", "tail"
+        ])
+        is_outro_cut = (
+            has_outro_phrase
+            or start_str in ("outro", "the outro", "tail", "the tail", "ending", "the ending", "the end")
+            or (end_str in ("the end", "outro", "ending") and (start_val is None or start_str in ("the end", "")))
+        )
+        is_intro_cut = (
+            any(kw in raw_str for kw in ["at the start", "at the beginning", "in the start", "in the beginning", "intro", "opening"])
+            or start_str in ("intro", "the intro", "opening", "the opening")
+            or (end_str in ("intro", "the intro", "the start", "beginning") and (start_val is None or start_str in ("0", "", "the start")))
+        )
+
+        # If user explicitly asked to cut the outro / trailing screen
+        if is_outro_cut and (start_val is None or start_str in ("the end", "outro", "the outro", "tail", "the tail", "ending") or end_str in ("the end", "end", "outro") or not end_val):
+            last_word_end = 0
+            if self.transcript and self.transcript.words:
+                last_word_end = self.transcript.words[-1].end_us
+            # If there is trailing silence / screen after the last spoken word >= 0.3s
+            if last_word_end > 0 and (current_dur_us - last_word_end) >= 300_000:
+                return last_word_end, current_dur_us, None
+            # Otherwise, cut the trailing 2.5s (or up to half the duration)
+            tail_us = min(int(current_dur_us * 0.5), 2_500_000)
+            return max(0, current_dur_us - tail_us), current_dur_us, None
+
+        # If user explicitly asked to cut the intro / leading screen
+        if is_intro_cut and (start_val is None or start_str in ("0", "", "the start", "intro", "the intro") or end_str in ("the start", "intro", "beginning") or not start_val):
+            first_word_start = 0
+            if self.transcript and self.transcript.words:
+                first_word_start = self.transcript.words[0].start_us
+            if first_word_start >= 300_000:
+                return 0, first_word_start, None
+            lead_us = min(int(current_dur_us * 0.5), 2_500_000)
+            return 0, lead_us, None
+
         try:
-            if start_val is None or start_val == "0":
+            # Check if end_val is a relative time from the end (e.g. "the last 5 seconds")
+            if end_val and ("last" in end_str):
+                pt_end = parse_time(str(end_val), current_dur_us)
+                if pt_end.is_relative and pt_end.relative_anchor == "end" and (start_val is None or start_val == "0"):
+                    return pt_end.resolve(current_dur_us), current_dur_us, None
+
+            if start_val is None or start_val == "0" or start_str in start_terms:
                 start_us = 0
             elif isinstance(start_val, (int, float)):
                 start_us = int(start_val * 1_000_000)
-            elif "first" in str(start_val) or "last" in str(start_val):
-                pt = parse_time(str(start_val), current_dur_us)
-                start_us = pt.value_us
             else:
                 pt = parse_time(str(start_val), current_dur_us)
-                start_us = pt.value_us
+                start_us = pt.resolve(current_dur_us)
 
-            if end_val is None or end_val == "end":
+            if end_val is None or end_val == "end" or end_str in end_terms:
                 end_us = current_dur_us
             elif isinstance(end_val, (int, float)):
                 end_us = int(end_val * 1_000_000)
-            elif "first" in str(end_val) or "last" in str(end_val):
-                pt = parse_time(str(end_val), current_dur_us)
-                end_us = pt.value_us
             else:
                 pt = parse_time(str(end_val), current_dur_us)
-                end_us = pt.value_us
+                end_us = pt.resolve(current_dur_us)
 
         except Exception as e:
             return 0, 0, f"Failed to parse time range: {e}"
