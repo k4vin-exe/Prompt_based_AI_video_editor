@@ -1,0 +1,1 @@
+{"response": "{\n  \"intent\": \"remove_topic\",\n  \"params\": {\n    \"topic\": \"pricing\",\n    \"occurrence\": null\n  }\n}", "adapter": "groq"}

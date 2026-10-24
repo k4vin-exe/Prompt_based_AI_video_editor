@@ -175,7 +175,7 @@ def _rule_based_intent(text: str) -> str:
         if re.search(r"\bauto\b", t):
             return json.dumps({"intent": "auto_caption", "params": {}})
         return json.dumps({"intent": "add_caption", "params": {"text": "", "anchor": None}})
-    if re.search(r"\b(put|show|display|overlay)\b.+\b(?:text|words?|['\"].+['\"])", t):
+    if re.search(r"\b(put|show|display|overlay|add)\b.+\b(?:text|words?|['\"].+['\"])", t) or re.search(r"\bin\b.+\badd\b.+['\"].+['\"]", t):
         return json.dumps({"intent": "add_caption", "params": {"text": "", "anchor": None}})
     if re.search(r"\b(when\s+i\s+say|over\s+the\s+words?|over\s+the\s+phrase)", t):
         return json.dumps({"intent": "add_caption", "params": {"text": "", "anchor": None}})

@@ -742,6 +742,77 @@ class Session:
                 group_id=group_id,
             )
 
+        elif action == "add_caption":
+            cap_text = ctx.get("text", "")
+            style_dict = ctx.get("style", {})
+
+            if choice_val == "all":
+                before_dur = self._current_timeline.duration_us
+                before_hash = self.get_timeline_hash()
+                self.history.begin_group("Add caption to all occurrences")
+                ops_list = []
+                for m in matches:
+                    self._caption_counter += 1
+                    op = AddCaptionOp(
+                        op_id=0, group_id=0,
+                        caption_id=self._caption_counter,
+                        text=cap_text,
+                        word_id_start=m.word_start.word_id,
+                        word_id_end=m.word_end.word_id,
+                        style=style_dict,
+                    )
+                    self._last_caption_id = self._caption_counter
+                    ops_list.append(self.history.append_op(op))
+                group_id = self.history.commit_group()
+                self._current_timeline = fold(self.transcript, self.history.get_active_ops())
+                return AppliedAnswer(
+                    operations=[OperationSummary(o.op_id, "AddCaptionOp", f"Added caption '{cap_text}' on words {o.word_id_start}..{o.word_id_end}") for o in ops_list],
+                    summary=f"Added caption '{cap_text}' to all {len(matches)} occurrences.",
+                    before_after=BeforeAfter(before_dur, self._current_timeline.duration_us, before_hash, self.get_timeline_hash()),
+                    time_policy="current_edited",
+                    group_id=group_id,
+                )
+
+            idx = self._parse_ordinal_choice(choice_val)
+            if idx is None or idx >= len(matches):
+                return RejectedAnswer(
+                    reason=f"Invalid choice '{choice_val}' for caption options.",
+                    error_code="INVALID_CLARIFICATION_CHOICE",
+                    original_instruction=text,
+                )
+
+            target = matches[idx]
+            self._caption_counter += 1
+            cap_id = self._caption_counter
+            self._last_caption_id = cap_id
+
+            before_dur = self._current_timeline.duration_us
+            before_hash = self.get_timeline_hash()
+
+            self.history.begin_group(f"Add caption '{cap_text}' to {choice_val} occurrence")
+            op = AddCaptionOp(
+                op_id=0, group_id=0,
+                caption_id=cap_id,
+                text=cap_text,
+                word_id_start=target.word_start.word_id,
+                word_id_end=target.word_end.word_id,
+                style=style_dict,
+            )
+            op = self.history.append_op(op)
+            group_id = self.history.commit_group()
+
+            self._current_timeline = fold(self.transcript, self.history.get_active_ops())
+            after_dur = self._current_timeline.duration_us
+            after_hash = self.get_timeline_hash()
+
+            return AppliedAnswer(
+                operations=[OperationSummary(op.op_id, "AddCaptionOp", f"Added caption '{cap_text}' on words {target.word_start.word_id}..{target.word_end.word_id}")],
+                summary=f"Added caption '{cap_text}' to the {choice_val} occurrence (at {format_time_mm_ss(target.src_start_us)}).",
+                before_after=BeforeAfter(before_dur, after_dur, before_hash, after_hash),
+                time_policy="current_edited",
+                group_id=group_id,
+            )
+
         return None
 
     def _parse_ordinal_choice(self, choice_str: str) -> Optional[int]:
@@ -751,6 +822,11 @@ class Session:
             "third": 2, "3rd": 2, "3": 2,
             "fourth": 3, "4th": 3, "4": 3,
             "fifth": 4, "5th": 4, "5": 4,
+            "sixth": 5, "6th": 5, "6": 5,
+            "seventh": 6, "7th": 6, "7": 6,
+            "eighth": 7, "8th": 7, "8": 7,
+            "ninth": 8, "9th": 8, "9": 8,
+            "tenth": 9, "10th": 9, "10": 9,
         }
         for k, v in mapping.items():
             if k in str(choice_str).lower():

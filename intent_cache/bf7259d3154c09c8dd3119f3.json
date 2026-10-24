@@ -1,0 +1,1 @@
+{"response": "{\n  \"intent\": \"cut\",\n  \"params\": {\n    \"start\": \"0:00\",\n    \"end\": \"1:00\",\n    \"policy\": \"current_edited\"\n  }\n}", "adapter": "groq"}

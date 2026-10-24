@@ -28,12 +28,17 @@ class GroqLLMAdapter(LLMAdapter):
         model: Optional[str] = None,
     ) -> None:
         self._api_key = (api_key or os.environ.get("GROQ_API_KEY", "")).strip()
-        self._model_name = (
+        default_model = "qwen/qwen3.8-27b"
+        configured = (
             model
             or os.environ.get("LLM_GROQ_MODEL")
             or os.environ.get("GROQ_LLM_MODEL")
-            or "llama-3.1-8b-instant"
+            or default_model
         ).strip()
+        # If the deprecated llama-3.1-8b-instant was requested, use active qwen model
+        if configured == "llama-3.1-8b-instant":
+            configured = default_model
+        self._model_name = configured
         self._client = None
 
     @property
@@ -56,13 +61,31 @@ class GroqLLMAdapter(LLMAdapter):
 
     def complete(self, system_prompt: str, user_prompt: str) -> str:
         client = self._get_client()
-        response = client.chat.completions.create(
-            model=self._model_name,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.0,   # Deterministic
-            max_tokens=512,
-        )
-        return response.choices[0].message.content.strip()
+        candidates = [self._model_name, "qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+        # Remove duplicates while preserving order
+        candidate_models = list(dict.fromkeys(candidates))
+
+        last_err = None
+        for cand in candidate_models:
+            try:
+                response = client.chat.completions.create(
+                    model=cand,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.0,   # Deterministic
+                    max_tokens=512,
+                )
+                self._model_name = cand
+                return response.choices[0].message.content.strip()
+            except Exception as e:
+                last_err = e
+                # If error is model not found or invalid model, try next candidate
+                if "model" in str(e).lower() or "not_found" in str(e).lower() or "404" in str(e):
+                    continue
+                raise e
+
+        if last_err:
+            raise last_err
+        raise RuntimeError("No working Groq model found.")

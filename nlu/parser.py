@@ -115,6 +115,9 @@ def _fast_path_meta(text: str) -> Optional[Dict[str, Any]]:
     if tl in ("auto-caption", "auto caption", "caption the whole video"):
         return {"intent": "auto_caption", "params": {"style": {}}}
 
+    if re.search(r"\b(cut|remove|delete)\s+(everything|the\s+whole\s+video)\b", tl):
+        return {"intent": "cut", "params": {"start": "0", "end": "end", "policy": "current_edited"}}
+
     # Ordinal clarification reply: "the second one", "all"
     ord_match = re.search(r"\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|1st|2nd|3rd|\d+)\s+one\b", tl)
     if ord_match:
@@ -179,6 +182,18 @@ def _rule_parse_single(text: str) -> Dict[str, Any]:
 
     # 5. Add caption: "Add a caption 'Welcome!' when I say welcome to the channel"
     # or "put a 'Welcome!' text when I say...", "show 'Welcome!' on screen...", etc.
+    # or "in the intro add 'welcome'"
+    in_loc_match = re.search(r"in\s+(?:the\s+)?([a-z0-9_]+)\s+add\s+(?:a\s+caption\s+)?['\"]([^'\"]+)['\"]", t, re.IGNORECASE)
+    if in_loc_match:
+        return {
+            "intent": "add_caption",
+            "params": {
+                "text": in_loc_match.group(2).strip(),
+                "target_phrase": in_loc_match.group(1).strip(),
+                "style": {},
+            },
+        }
+
     caption_quote_match = re.search(
         r"(?:add\s+(?:a\s+)?caption\s+|put\s+(?:a\s+)?|show\s+|display\s+(?:the\s+text\s+)?|overlay\s+)['\"]([^'\"]+)['\"](?:\s+(?:text\s+|on\s+screen\s+)?(?:when\s+(?:i|someone)\s+say(?:s)?|on\s+the\s+words?|over\s+the\s+words?|over|on\s+the\s+phrase)\s+(.+))?",
         t, re.IGNORECASE,
