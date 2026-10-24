@@ -71,10 +71,14 @@ def parse_instruction(
 
     # ── Step 2: LLM primary ───────────────────────────────────────────────────
     if llm_adapter is not None:
-        intent = _llm_parse(raw_text, llm_adapter, context_pack)
-        valid, err = validate_intent(intent)
-        if valid and intent.get("intent") != "unknown":
-            return intent
+        try:
+            intent = _llm_parse(raw_text, llm_adapter, context_pack)
+            valid, err = validate_intent(intent)
+            if valid and intent.get("intent") != "unknown":
+                return intent
+        except Exception:
+            # LLM adapter error or network timeout → fall through to deterministic rules
+            pass
         # LLM returned unknown or invalid → fall through to regex
 
     # ── Step 3: Full rule-based fallback ─────────────────────────────────────

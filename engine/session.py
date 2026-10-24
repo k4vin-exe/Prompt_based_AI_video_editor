@@ -447,44 +447,119 @@ class Session:
 
     def _handle_add_caption(self, params: Dict[str, Any], raw_text: str) -> AppliedAnswer | ClarificationAnswer | RejectedAnswer:
         cap_text = params.get("text", "")
-        target_phrase = params.get("target_phrase")
-        style_dict = params.get("style", {})
+        anchor_val = (params.get("anchor_phrase") or params.get("anchor") or "").lower().strip().strip("'\"")
+        target_val = (params.get("target_phrase") or "").lower().strip().strip("'\"")
+        style_dict = params.get("style") or {}
 
-        # Find words to anchor to (R-CAP-01, R-ANCHOR-01)
-        if target_phrase:
+        start_phrases = {
+            "the start", "start", "the beginning", "beginning", "intro", "the intro",
+            "opening", "the opening", "start of the video", "beginning of the video",
+            "at the start", "at the beginning", "in the start", "in the beginning", "start of video",
+        }
+        end_phrases = {
+            "the end", "end", "the ending", "ending", "outro", "the outro",
+            "end of the video", "at the end", "in the end", "end of video",
+        }
+
+        raw_lower = raw_text.lower()
+        has_start_cue = any(kw in raw_lower for kw in [
+            "in the start", "at the start", "at the beginning", "in the beginning",
+            "in the intro", "at the intro", "in the opening", "from the start", "from the beginning"
+        ])
+        has_end_cue = any(kw in raw_lower for kw in [
+            "at the end", "in the end", "at the outro", "in the outro", "to the end"
+        ])
+
+        is_start_pos = (
+            anchor_val in start_phrases
+            or target_val in start_phrases
+            or (has_start_cue and (not target_val or target_val == cap_text.lower().strip()))
+            or (not target_val and not anchor_val and not has_end_cue)
+        )
+        is_end_pos = (
+            anchor_val in end_phrases
+            or target_val in end_phrases
+            or (has_end_cue and (not target_val or target_val == cap_text.lower().strip()))
+        )
+
+        time_us = None
+        target_phrase = None
+        if not is_start_pos and not is_end_pos:
+            target_phrase = params.get("target_phrase") or params.get("anchor_phrase") or params.get("anchor")
+            tp_clean = (target_phrase or "").lower().strip().strip("'\"")
+            if target_phrase:
+                try:
+                    from nlu.timeparse import parse_time
+                    t_str = re.sub(r"^(?:at|around|from)\s+", "", tp_clean).strip()
+                    t_parsed = parse_time(t_str)
+                    time_us = t_parsed.us(self.transcript.duration_us)
+                except Exception:
+                    time_us = None
+
+        if is_start_pos:
+            word_start_id = self.transcript.words[0].word_id
+            word_end_id = self.transcript.words[min(3, len(self.transcript.words)-1)].word_id
+            src_start_us = self.transcript.words[0].start_us
+            src_end_us = self.transcript.words[min(3, len(self.transcript.words)-1)].end_us
+        elif is_end_pos:
+            w_end_idx = len(self.transcript.words) - 1
+            w_start_idx = max(0, w_end_idx - 3)
+            word_start_id = self.transcript.words[w_start_idx].word_id
+            word_end_id = self.transcript.words[w_end_idx].word_id
+            src_start_us = self.transcript.words[w_start_idx].start_us
+            src_end_us = self.transcript.words[w_end_idx].end_us
+        elif time_us is not None:
+            target_idx = 0
+            for idx, w in enumerate(self.transcript.words):
+                if w.start_us >= time_us:
+                    target_idx = idx
+                    break
+            else:
+                target_idx = len(self.transcript.words) - 1
+            word_start_id = self.transcript.words[target_idx].word_id
+            word_end_id = self.transcript.words[min(target_idx + 3, len(self.transcript.words) - 1)].word_id
+            src_start_us = self.transcript.words[target_idx].start_us
+            src_end_us = self.transcript.words[min(target_idx + 3, len(self.transcript.words) - 1)].end_us
+        else:
             matches = find_exact_phrase(self.transcript, target_phrase)
             if not matches:
                 matches = find_topic_occurrences(self.transcript, target_phrase, expand_sentence=False)
 
             if not matches:
-                return RejectedAnswer(
-                    reason=f"Anchor phrase '{target_phrase}' not found in transcript.",
-                    error_code="NO_MATCH",
-                    original_instruction=raw_text,
-                )
+                if has_start_cue:
+                    word_start_id = self.transcript.words[0].word_id
+                    word_end_id = self.transcript.words[min(3, len(self.transcript.words)-1)].word_id
+                    src_start_us = self.transcript.words[0].start_us
+                    src_end_us = self.transcript.words[min(3, len(self.transcript.words)-1)].end_us
+                else:
+                    return RejectedAnswer(
+                        reason=f"Anchor phrase '{target_phrase}' not found in transcript.",
+                        error_code="NO_MATCH",
+                        original_instruction=raw_text,
+                    )
+            else:
+                if len(matches) > 1:
+                    if has_start_cue:
+                        target = matches[0]
+                    elif has_end_cue:
+                        target = matches[-1]
+                    else:
+                        q, opts = build_clarification_for_matches(target_phrase, matches, self._current_timeline)
+                        self._pending_clarification = {
+                            "action": "add_caption",
+                            "text": cap_text,
+                            "style": style_dict,
+                            "matches": matches,
+                            "raw_text": raw_text,
+                        }
+                        return ClarificationAnswer(question=q, options=opts)
+                else:
+                    target = matches[0]
 
-            if len(matches) > 1:
-                q, opts = build_clarification_for_matches(target_phrase, matches, self._current_timeline)
-                self._pending_clarification = {
-                    "action": "add_caption",
-                    "text": cap_text,
-                    "style": style_dict,
-                    "matches": matches,
-                    "raw_text": raw_text,
-                }
-                return ClarificationAnswer(question=q, options=opts)
-
-            target = matches[0]
-            word_start_id = target.word_start.word_id
-            word_end_id = target.word_end.word_id
-            src_start_us = target.src_start_us
-            src_end_us = target.src_end_us
-        else:
-            # Time-based anchor or start of video
-            word_start_id = self.transcript.words[0].word_id
-            word_end_id = self.transcript.words[min(3, len(self.transcript.words)-1)].word_id
-            src_start_us = self.transcript.words[0].start_us
-            src_end_us = self.transcript.words[min(3, len(self.transcript.words)-1)].end_us
+                word_start_id = target.word_start.word_id
+                word_end_id = target.word_end.word_id
+                src_start_us = target.src_start_us
+                src_end_us = target.src_end_us
 
         self._caption_counter += 1
         cap_id = self._caption_counter

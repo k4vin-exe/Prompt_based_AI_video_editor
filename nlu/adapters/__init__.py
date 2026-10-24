@@ -65,6 +65,9 @@ def make_llm_adapter(
     elif name == "gemini":
         from .llm_gemini import GeminiLLMAdapter
         inner = GeminiLLMAdapter()
+    elif name in ("huggingface", "hf"):
+        from .llm_hf import HuggingFaceLLMAdapter
+        inner = HuggingFaceLLMAdapter()
     elif name == "ollama":
         from .llm_ollama import OllamaLLMAdapter
         inner = OllamaLLMAdapter()
@@ -73,7 +76,7 @@ def make_llm_adapter(
         from .llm_mock import MockLLMAdapter
         inner = MockLLMAdapter(cassette_dir=cache_dir)
 
-    if name not in ("groq", "gemini", "ollama") or mode == "live":
+    if name not in ("groq", "gemini", "ollama", "huggingface", "hf") or mode == "live":
         return inner  # Mock already handles its own cache; live mode skips caching
 
     return CachingLLMAdapter(inner, mode=mode, cache_dir=cache_dir)

@@ -13,6 +13,7 @@ from nlu.adapters.llm_mock import MockLLMAdapter
 from nlu.adapters.llm_groq import GroqLLMAdapter
 from nlu.adapters.llm_gemini import GeminiLLMAdapter
 from nlu.adapters.llm_ollama import OllamaLLMAdapter
+from nlu.adapters.llm_hf import HuggingFaceLLMAdapter
 from nlu.adapters.stt_mock import MockSTTAdapter
 from nlu.adapters.stt_whisper import WhisperSTTAdapter
 from nlu.adapters.llm_base import LLMAdapter
@@ -50,6 +51,10 @@ def test_make_llm_adapter_factory():
     gemini_adapter = make_llm_adapter("gemini", cache_mode="live")
     assert isinstance(gemini_adapter, GeminiLLMAdapter)
     assert gemini_adapter.name == "gemini"
+
+    hf_adapter = make_llm_adapter("huggingface", cache_mode="live")
+    assert isinstance(hf_adapter, HuggingFaceLLMAdapter)
+    assert hf_adapter.name == "huggingface"
 
     ollama_adapter = make_llm_adapter("ollama", cache_mode="live")
     assert isinstance(ollama_adapter, OllamaLLMAdapter)
