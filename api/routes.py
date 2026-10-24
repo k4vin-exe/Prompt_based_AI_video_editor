@@ -143,8 +143,8 @@ def _create_project_from_path(
     if clean_vpath.startswith("tests/"):
         preview_url = f"/{clean_vpath}"
     else:
-        storage_abs = os.path.abspath(settings.storage_dir)
-        vid_abs = os.path.abspath(video_path)
+        storage_abs = os.path.normcase(os.path.abspath(settings.storage_dir))
+        vid_abs = os.path.normcase(os.path.abspath(video_path))
         if vid_abs.startswith(storage_abs):
             rel = os.path.relpath(vid_abs, storage_abs)
             preview_url = f"/storage/{rel.replace(os.sep, '/')}"
@@ -176,6 +176,23 @@ def _create_project_from_path(
         video_url=preview_url,
         analysis_summary=analysis_summary,
     )
+
+
+@router.post(
+    "/api/v1/projects/upload",
+    response_model=ProjectResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Projects"],
+)
+async def upload_project_video(file: UploadFile = File(...)) -> ProjectResponse:
+    """Create a project via direct video file upload."""
+    uploads_dir = os.path.abspath(settings.storage_dir)
+    os.makedirs(uploads_dir, exist_ok=True)
+    file_ext = os.path.splitext(file.filename or "video.mp4")[1]
+    save_path = os.path.join(uploads_dir, f"upload_{uuid.uuid4().hex[:8]}{file_ext}")
+    with open(save_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    return _create_project_from_path(save_path)
 
 
 @router.post(
@@ -261,6 +278,83 @@ def get_timeline(project_id: str) -> Dict[str, Any]:
         "duration_s": proj.session.get_duration_s(),
         "timeline": proj.session.timeline.to_dict(),
     }
+
+
+@router.get("/api/v1/projects/{project_id}/transcript", tags=["Projects"])
+def get_project_transcript(project_id: str) -> Dict[str, Any]:
+    proj = state.get_project(project_id)
+    if not proj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROJECT_NOT_FOUND", "message": f"Project '{project_id}' not found.", "retryable": False, "details": {}},
+        )
+    return {
+        "project_id": project_id,
+        "word_count": len(proj.session.transcript.words),
+        "transcript": proj.session.transcript.to_dict(),
+    }
+
+
+# ── Multi-Clip Media Bin Endpoints ───────────────────────────────────────────
+
+@router.get("/api/v1/projects/{project_id}/clips", tags=["Clips"])
+def get_project_clips(project_id: str) -> Dict[str, Any]:
+    proj = state.get_project(project_id)
+    if not proj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROJECT_NOT_FOUND", "message": f"Project '{project_id}' not found.", "retryable": False, "details": {}},
+        )
+    clips = getattr(proj, "clips", [])
+    if not clips:
+        clips = [{
+            "clip_id": f"clip_primary_{project_id[-6:]}",
+            "name": os.path.basename(proj.video_path),
+            "path": proj.video_path,
+            "duration_s": round(proj.metadata.duration_us / 1_000_000, 3),
+            "width": proj.metadata.width,
+            "height": proj.metadata.height,
+            "primary": True,
+        }]
+        setattr(proj, "clips", clips)
+    return {"project_id": project_id, "clips": clips}
+
+
+@router.post("/api/v1/projects/{project_id}/clips", tags=["Clips"])
+def add_project_clip(project_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    proj = state.get_project(project_id)
+    if not proj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROJECT_NOT_FOUND", "message": f"Project '{project_id}' not found.", "retryable": False, "details": {}},
+        )
+    clips = getattr(proj, "clips", [])
+    new_clip = {
+        "clip_id": f"clip_{uuid.uuid4().hex[:8]}",
+        "name": payload.get("name", "New Clip"),
+        "path": payload.get("path", proj.video_path),
+        "duration_s": float(payload.get("duration_s", 10.0)),
+        "width": int(payload.get("width", proj.metadata.width)),
+        "height": int(payload.get("height", proj.metadata.height)),
+        "primary": False,
+    }
+    clips.append(new_clip)
+    setattr(proj, "clips", clips)
+    return {"status": "ok", "clip": new_clip, "clips_count": len(clips)}
+
+
+@router.delete("/api/v1/projects/{project_id}/clips/{clip_id}", tags=["Clips"])
+def delete_project_clip(project_id: str, clip_id: str) -> Dict[str, Any]:
+    proj = state.get_project(project_id)
+    if not proj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROJECT_NOT_FOUND", "message": f"Project '{project_id}' not found.", "retryable": False, "details": {}},
+        )
+    clips = getattr(proj, "clips", [])
+    proj.clips = [c for c in clips if c.get("clip_id") != clip_id]
+    return {"status": "ok", "remaining_clips": len(proj.clips)}
+
 
 
 # ── Instructions (Integration Standard 2 & 3-way answers) ─────────────────────

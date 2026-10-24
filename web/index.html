@@ -69,8 +69,6 @@
         </button>
       </div>
 
-      <div class="badge-pro" title="Pro Engine Enabled">👑 Pro</div>
-
       <button id="renderBtn" class="btn btn-secondary btn-sm" title="Re-render full timeline with FFmpeg">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         Render Preview
@@ -235,28 +233,6 @@
           </div>
         </div>
       </div>
-
-      <!-- AI Copilot & Transcript Drawer View -->
-      <div class="drawer-view" id="drawerViewAi">
-        <div class="drawer-header">
-          <div class="drawer-nav-tabs">
-            <button class="copilot-tab active" data-view="chat">AI Chat</button>
-            <button class="copilot-tab" data-view="transcript">Transcript (<span id="transcriptWordCount">0</span>w)</button>
-            <button class="copilot-tab" data-view="history">History (<span id="historyCount">0</span>)</button>
-          </div>
-        </div>
-        <div class="copilot-content-box" id="copilotChatBox">
-          <div class="chat-stream" id="chatStream">
-            <!-- Messages added dynamically -->
-          </div>
-        </div>
-        <div class="copilot-content-box hidden" id="copilotTranscriptBox">
-          <div class="transcript-words-container" id="transcriptWordsContainer"></div>
-        </div>
-        <div class="copilot-content-box hidden" id="copilotHistoryBox">
-          <div class="history-list" id="historyList"></div>
-        </div>
-      </div>
     </section>
 
     <!-- Center Stage: Video Monitor & Controls -->
@@ -406,38 +382,88 @@
         </div>
       </section>
     </main>
-  </div>
 
-  <!-- Docked Bottom Smart AI Natural Language Bar -->
-  <footer class="ai-prompt-dock">
-    <div class="prompt-chips-row" id="suggestionChips">
-      <button class="chip" data-cmd="Add captions fully">✨ Auto Caption</button>
-      <button class="chip" data-cmd="Add vibration flash effect">⚡ Vibration Flash</button>
-      <button class="chip" data-cmd="Cut the first 5 seconds">✂️ Cut First 5s</button>
-      <button class="chip" data-cmd="remove silences longer than 1 second">🔇 Remove Silences</button>
-      <button class="chip" data-cmd="Make it 9:16">📱 Make 9:16 Reels</button>
-      <button class="chip" data-cmd="Speed up from 1:00 to 1:30 by 2x">⏩ Speed 2x</button>
-      <button class="chip" data-cmd="Suggest edits to make this video viral">💬 AI Advice</button>
-    </div>
+    <!-- Right Dedicated AI Copilot Chat Sidebar -->
+    <aside class="chat-sidebar-panel" id="chatSidebarPanel">
+      <div class="chat-panel-header">
+        <div class="chat-title-group">
+          <div class="copilot-glow-orb">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10a9.96 9.96 0 0 1-4.587-1.11L3 22l1.11-4.413A9.96 9.96 0 0 1 2 12C2 6.477 6.477 2 12 2z" fill="url(#orb-grad)"/>
+              <circle cx="8" cy="12" r="1.5" fill="white"/>
+              <circle cx="12" cy="12" r="1.5" fill="white"/>
+              <circle cx="16" cy="12" r="1.5" fill="white"/>
+              <defs>
+                <linearGradient id="orb-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#6366F1"/>
+                  <stop offset="1" stop-color="#D946EF"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div class="copilot-heading-text">
+            <span class="chat-panel-heading">AI Video Copilot</span>
+            <span class="copilot-status-indicator"><span class="status-dot"></span> Ready</span>
+          </div>
+        </div>
 
-    <form class="prompt-form" id="promptForm">
-      <div class="prompt-input-wrapper">
-        <span class="sparkle-icon">✨</span>
-        <input
-          type="text"
-          id="promptInput"
-          class="prompt-input"
-          placeholder="Ask AI to edit anything (e.g. 'Cut first 5s', 'Add vibration flash', 'Auto caption fully', 'Make 9:16 reels')..."
-          autocomplete="off"
-          required
-        >
-        <button type="submit" id="sendBtn" class="btn btn-primary send-btn">
-          <span>Apply</span>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        </button>
+        <div class="copilot-tabs">
+          <button class="copilot-tab active" data-view="chat" title="Interactive AI Chat & Edits">💬 Chat</button>
+          <button class="copilot-tab" data-view="transcript" title="Synchronized Word Transcript">📝 Words (<span id="transcriptWordCount">0</span>)</button>
+          <button class="copilot-tab" data-view="history" title="Timeline Edit History">📜 Ops (<span id="historyCount">0</span>)</button>
+        </div>
       </div>
-    </form>
-  </footer>
+
+      <div class="chat-panel-body">
+        <!-- Interactive Chat Stream -->
+        <div class="copilot-content-box" id="copilotChatBox">
+          <div class="chat-stream" id="chatStream">
+            <!-- Messages added dynamically -->
+          </div>
+        </div>
+
+        <!-- Synchronized Transcript Words Box -->
+        <div class="copilot-content-box hidden" id="copilotTranscriptBox">
+          <div class="transcript-words-container" id="transcriptWordsContainer"></div>
+        </div>
+
+        <!-- Timeline Edit History Stack -->
+        <div class="copilot-content-box hidden" id="copilotHistoryBox">
+          <div class="history-list" id="historyList"></div>
+        </div>
+      </div>
+
+      <!-- Dedicated Bottom Prompt Bar & Chips inside the Chat Panel -->
+      <div class="chat-panel-footer">
+        <div class="prompt-chips-row" id="suggestionChips">
+          <button class="chip" data-cmd="Add captions fully">✨ Auto Caption</button>
+          <button class="chip" data-cmd="Add vibration flash effect">⚡ Flash</button>
+          <button class="chip" data-cmd="Cut the first 5 seconds">✂️ Cut 5s</button>
+          <button class="chip" data-cmd="Make it 9:16">📱 9:16 Reels</button>
+          <button class="chip" data-cmd="remove silences longer than 1 second">🔇 Silences</button>
+          <button class="chip" data-cmd="Suggest edits to make this video viral">💡 Viral Tips</button>
+        </div>
+
+        <form class="prompt-form" id="promptForm">
+          <div class="prompt-input-wrapper">
+            <span class="sparkle-icon">✨</span>
+            <input
+              type="text"
+              id="promptInput"
+              class="prompt-input"
+              placeholder="Ask AI to edit, cut, style, flash, speed..."
+              autocomplete="off"
+              required
+            >
+            <button type="submit" id="sendBtn" class="btn btn-primary send-btn" title="Execute AI instruction">
+              <span>Apply</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </form>
+      </div>
+    </aside>
+  </div>
 
   <!-- Clarification Modal -->
   <div class="modal-backdrop hidden" id="clarificationModal">

@@ -148,9 +148,18 @@ function setupEventListeners() {
   // 1. Tool Rail Tab Switching
   dom.railBtns.forEach(btn => {
     btn.addEventListener("click", () => {
+      const tab = btn.dataset.railTab;
+      if (tab === "ai") {
+        // Focus dedicated right Copilot chat
+        dom.copilotTabs.forEach(b => b.classList.toggle("active", b.dataset.view === "chat"));
+        dom.copilotChatBox?.classList.remove("hidden");
+        dom.copilotTranscriptBox?.classList.add("hidden");
+        dom.copilotHistoryBox?.classList.add("hidden");
+        dom.promptInput?.focus();
+        return;
+      }
       dom.railBtns.forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      const tab = btn.dataset.railTab;
       state.activeRailTab = tab;
 
       // Switch drawer view
@@ -429,17 +438,28 @@ async function handleVideoUpload(file) {
       method: "POST",
       body: formData,
     });
-    if (!res.ok) throw new Error("Upload failed");
+    if (!res.ok) {
+      let errDetail = "Upload failed";
+      try {
+        const errData = await res.json();
+        errDetail = errData.error?.message || errData.detail?.message || errDetail;
+      } catch {}
+      throw new Error(errDetail);
+    }
     const data = await res.json();
 
     state.projectId = data.project_id;
     state.videoDurationS = data.duration_s;
+    state.words = [];
 
     // Add to project select dropdown
-    const opt = document.createElement("option");
-    opt.value = data.project_id;
-    opt.textContent = `${file.name} (${data.duration_s.toFixed(1)}s)`;
-    dom.projectSelect.appendChild(opt);
+    let opt = Array.from(dom.projectSelect.options).find(o => o.value === data.project_id);
+    if (!opt) {
+      opt = document.createElement("option");
+      opt.value = data.project_id;
+      opt.textContent = `${file.name} (${data.duration_s.toFixed(1)}s)`;
+      dom.projectSelect.appendChild(opt);
+    }
     dom.projectSelect.value = data.project_id;
 
     // Update player source
@@ -451,7 +471,7 @@ async function handleVideoUpload(file) {
     await fetchProjectClips();
 
     appendSystemMessage(
-      `✓ Video "${file.name}" analyzed! Transcribed ${data.transcript_word_count} words. Ready for natural-language editing.`,
+      `✓ Video "${file.name}" analyzed successfully!\n• Duration: ${data.duration_s.toFixed(1)}s\n• Resolution: ${data.resolution ? data.resolution.join('×') : 'Auto'}\n• Words detected: ${data.transcript_word_count}\n\nAsk AI anything below (e.g., "Cut first 5s", "Add captions fully", "Make it 9:16", "Add vibration flash")!`,
       "applied"
     );
   } catch (err) {
@@ -537,25 +557,27 @@ function renderTimelineView() {
   // 1. Video Track (V1)
   dom.videoTrackBars.innerHTML = "";
   (state.timeline.segments || []).forEach((seg, i) => {
-    const segDurUs = seg.output_duration_us || (seg.src_end_us - seg.src_start_us) || 1000000;
-    const startUs = seg.output_start_us || 0;
+    const segSpeed = seg.speed != null ? seg.speed : (seg.speed_factor || 1.0);
+    const startUs = seg.edited_start_us != null ? seg.edited_start_us : (seg.output_start_us || 0);
+    const endUs = seg.edited_end_us != null ? seg.edited_end_us : (startUs + (seg.src_end_us - seg.src_start_us));
+    const segDurUs = (endUs - startUs) || 1000000;
     const leftPct = (startUs / totalUs) * 100;
     const widthPct = (segDurUs / totalUs) * 100;
 
     const block = document.createElement("div");
     let speedClass = "normal";
     let speedLabel = "";
-    if (seg.speed_factor > 1.05) {
+    if (segSpeed > 1.05) {
       speedClass = "speed-up";
-      speedLabel = `⚡ ${seg.speed_factor.toFixed(1)}x`;
-    } else if (seg.speed_factor < 0.95) {
+      speedLabel = `⚡ ${segSpeed.toFixed(1)}x`;
+    } else if (segSpeed < 0.95) {
       speedClass = "speed-down";
-      speedLabel = `🐢 ${seg.speed_factor.toFixed(1)}x`;
+      speedLabel = `🐢 ${segSpeed.toFixed(1)}x`;
     }
 
     block.className = `video-block ${speedClass}`;
     block.style.left = `${leftPct}%`;
-    block.style.width = `calc(${widthPct}% - 2px)`;
+    block.style.width = `calc(${Math.max(widthPct, 1.5)}% - 2px)`;
     block.innerHTML = `<span class="block-label">Segment #${i + 1} ${speedLabel}</span>`;
     block.title = `Segment #${i + 1}: ${(segDurUs / 1_000_000).toFixed(2)}s`;
 
@@ -591,8 +613,10 @@ function renderTimelineView() {
   // 3. Captions Track (T1)
   dom.captionTrackBars.innerHTML = "";
   (state.timeline.captions || []).forEach(cap => {
-    const startUs = cap.output_start_us || 0;
-    const capDurUs = (cap.output_end_us - cap.output_start_us) || 1_000_000;
+    if (cap.hidden) return;
+    const startUs = cap.edited_start_us != null ? cap.edited_start_us : (cap.output_start_us || 0);
+    const endUs = cap.edited_end_us != null ? cap.edited_end_us : (startUs + 1_000_000);
+    const capDurUs = (endUs - startUs) || 1_000_000;
     const startPct = (startUs / totalUs) * 100;
     const widthPct = (capDurUs / totalUs) * 100;
 
@@ -737,10 +761,16 @@ function onVideoTimeUpdate() {
 function checkActiveCaptions(timeS) {
   if (!state.timeline || !state.timeline.captions) return;
   const timeUs = timeS * 1_000_000;
-  const cap = state.timeline.captions.find(c => timeUs >= c.output_start_us && timeUs <= c.output_end_us);
+  const cap = state.timeline.captions.find(c => {
+    if (c.hidden) return false;
+    const s = c.edited_start_us != null ? c.edited_start_us : (c.output_start_us || 0);
+    const e = c.edited_end_us != null ? c.edited_end_us : (s + 1_000_000);
+    return timeUs >= s && timeUs <= e;
+  });
 
   if (cap) {
-    dom.captionOverlay.innerHTML = `<span class="caption-text-styled">${cap.text}</span>`;
+    const styleClass = cap.style?.preset ? `style-${cap.style.preset}` : "";
+    dom.captionOverlay.innerHTML = `<span class="caption-text-styled ${styleClass}">${escapeHtml(cap.text)}</span>`;
     dom.captionOverlay.classList.remove("hidden");
   } else {
     dom.captionOverlay.classList.add("hidden");
@@ -748,6 +778,7 @@ function checkActiveCaptions(timeS) {
 }
 
 function highlightActiveWord(timeS) {
+  if (!dom.transcriptWordsContainer) return;
   const spans = dom.transcriptWordsContainer.querySelectorAll(".word-span");
   spans.forEach(span => {
     const startS = parseFloat(span.dataset.startS);
@@ -759,25 +790,52 @@ function highlightActiveWord(timeS) {
   });
 }
 
-function updateTranscriptWords() {
-  if (!state.timeline) return;
-  dom.transcriptWordsContainer.innerHTML = "";
-  const words = state.timeline.surviving_words || [];
-  dom.transcriptWordCount.textContent = `${words.length}`;
+async function updateTranscriptWords() {
+  if (!state.projectId) return;
+  try {
+    if (!state.words || state.words.length === 0) {
+      const res = await fetch(`/api/v1/projects/${state.projectId}/transcript`);
+      if (res.ok) {
+        const data = await res.json();
+        state.words = data.transcript?.words || [];
+      }
+    }
 
-  words.forEach(w => {
-    const span = document.createElement("span");
-    span.className = "word-span";
-    span.textContent = w.text;
-    span.dataset.startS = w.timeline_start_s || (w.start_us / 1_000_000);
+    if (!dom.transcriptWordsContainer) return;
+    dom.transcriptWordsContainer.innerHTML = "";
 
-    span.addEventListener("click", () => {
-      const seek = parseFloat(span.dataset.startS);
-      if (!isNaN(seek)) dom.videoPlayer.currentTime = seek;
+    const segments = state.timeline?.segments || [];
+    const survivingWords = (state.words || []).filter(w => {
+      if (segments.length === 0) return true;
+      return segments.some(seg => w.start_us >= seg.src_start_us && w.end_us <= seg.src_end_us);
     });
 
-    dom.transcriptWordsContainer.appendChild(span);
-  });
+    if (dom.transcriptWordCount) {
+      dom.transcriptWordCount.textContent = `${survivingWords.length}`;
+    }
+
+    if (survivingWords.length === 0) {
+      dom.transcriptWordsContainer.innerHTML = `<div style="color:var(--text-dim); font-size:0.75rem; padding:0.5rem;">No active words in current cut.</div>`;
+      return;
+    }
+
+    survivingWords.forEach(w => {
+      const span = document.createElement("span");
+      span.className = "word-span";
+      span.textContent = w.text;
+      span.dataset.startS = (w.start_us / 1_000_000).toFixed(2);
+      span.title = `[${w.id || ""}] ${w.text} (${(w.start_us / 1_000_000).toFixed(2)}s)`;
+
+      span.addEventListener("click", () => {
+        const seek = parseFloat(span.dataset.startS);
+        if (!isNaN(seek)) dom.videoPlayer.currentTime = seek;
+      });
+
+      dom.transcriptWordsContainer.appendChild(span);
+    });
+  } catch (err) {
+    console.warn("Failed to update transcript words:", err);
+  }
 }
 
 function formatTime(s) {

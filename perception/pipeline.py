@@ -79,7 +79,18 @@ def analyse(
     if stt_adapter is None:
         stt_adapter = _default_stt_adapter()
 
-    stt_result = stt_adapter.transcribe(video_path, diarize=False)
+    audio_for_stt = _extract_audio_if_needed(video_path)
+    try:
+        stt_result = stt_adapter.transcribe(audio_for_stt, diarize=False)
+    except Exception:
+        stt_result = {"words": [], "language": "en", "duration_us": 0}
+    finally:
+        if audio_for_stt != video_path and os.path.exists(audio_for_stt):
+            try:
+                os.remove(audio_for_stt)
+            except OSError:
+                pass
+
     words_raw = stt_result.get("words", [])
     language = stt_result.get("language", "en")
     duration_us = stt_result.get("duration_us", 0)
@@ -221,7 +232,8 @@ def _extract_audio_if_needed(video_path: str) -> str:
     import subprocess
     import shutil
 
-    ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
+    from engine.probe import get_ffmpeg_path
+    ffmpeg = get_ffmpeg_path()
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     tmp.close()
 
@@ -233,4 +245,8 @@ def _extract_audio_if_needed(video_path: str) -> str:
         ], check=True, capture_output=True)
         return tmp.name
     except Exception:
-        return video_path  # pass video to VAD as-is; it may still work
+        try:
+            os.remove(tmp.name)
+        except OSError:
+            pass
+        return video_path
