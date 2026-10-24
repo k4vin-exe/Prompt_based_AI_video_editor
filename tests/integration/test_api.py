@@ -201,3 +201,26 @@ def test_background_render_job():
     assert "video_url" in final_job_data["results"]
     assert "otio_url" in final_job_data["results"]
     assert "manifest_url" in final_job_data["results"]
+
+    # Verify download endpoint returns valid MP4 with attachment headers
+    r_dl = client.get(f"/api/v1/download/{job_id}/final_video.mp4")
+    assert r_dl.status_code == 200
+    assert "video/mp4" in r_dl.headers.get("content-type", "")
+    assert "final_video.mp4" in r_dl.headers.get("content-disposition", "")
+    assert len(r_dl.content) > 1000
+
+    # Verify direct project download endpoint
+    r_proj_dl = client.get(f"/api/v1/projects/{project_id}/download")
+    assert r_proj_dl.status_code == 200
+    assert "video/mp4" in r_proj_dl.headers.get("content-type", "")
+    assert "edited_video.mp4" in r_proj_dl.headers.get("content-disposition", "")
+    assert len(r_proj_dl.content) > 1000
+
+    # Verify MP4 faststart (moov atom appears before mdat)
+    content = r_dl.content
+    moov_pos = content.find(b"moov")
+    mdat_pos = content.find(b"mdat")
+    assert moov_pos != -1, "moov atom must exist in rendered MP4"
+    assert mdat_pos != -1, "mdat atom must exist in rendered MP4"
+    assert moov_pos < mdat_pos, "moov atom must appear before mdat for faststart streaming/playback"
+

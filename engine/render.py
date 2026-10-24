@@ -243,6 +243,7 @@ def render_timeline(
             "-c:a", "aac",
             "-b:a", "192k",
             "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
             "-y",
             output_video_path,
         ]

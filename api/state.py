@@ -111,6 +111,11 @@ class GlobalState:
             job.updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             return job
 
+    def get_latest_job_for_project(self, project_id: str) -> Optional[JobState]:
+        with self._lock:
+            matching = [j for j in self.jobs.values() if j.project_id == project_id and j.status == "succeeded"]
+            return matching[-1] if matching else None
+
     # ── Idempotency ──────────────────────────────────────────────────────────
 
     def get_idempotent_response(self, key: str) -> Optional[IdempotencyRecord]:

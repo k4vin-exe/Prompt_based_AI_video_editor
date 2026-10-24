@@ -16,6 +16,7 @@ const state = {
   history: [],
   activeTab: "chat",
   isPlaying: false,
+  lastRenderedVideoUrl: null,
 };
 
 // ── DOM References ───────────────────────────────────────────────────────────
@@ -142,6 +143,24 @@ function setupEventListeners() {
     dom.renderModal.classList.add("hidden");
   });
 
+  // Export MP4 quick button
+  if (dom.quickDownloadBtn) {
+    dom.quickDownloadBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await handleExportMP4();
+    });
+  }
+
+  // Modal download button
+  if (dom.downloadVideoBtn) {
+    dom.downloadVideoBtn.addEventListener("click", (e) => {
+      if (state.lastRenderedVideoUrl) {
+        e.preventDefault();
+        triggerFileDownload(state.lastRenderedVideoUrl, "final_video.mp4");
+      }
+    });
+  }
+
   // Custom clarification reply
   dom.modalCustomSubmit.addEventListener("click", () => {
     const reply = dom.modalCustomInput.value.trim();
@@ -187,6 +206,11 @@ async function handleVideoUpload(file) {
     const previewUrl = data.video_url || URL.createObjectURL(file);
     dom.videoPlayer.src = previewUrl;
     dom.videoPlayer.load();
+
+    state.lastRenderedVideoUrl = null;
+    if (dom.quickDownloadBtn) {
+      dom.quickDownloadBtn.classList.remove("hidden");
+    }
 
     await refreshTimeline();
 
@@ -249,6 +273,10 @@ async function loadSelectedProject() {
 
     // Load initial timeline
     await refreshTimeline();
+    state.lastRenderedVideoUrl = null;
+    if (dom.quickDownloadBtn) {
+      dom.quickDownloadBtn.classList.remove("hidden");
+    }
     appendSystemMessage(`Initialized project: ${choice.toUpperCase()} (${data.duration_s}s, ${data.transcript_word_count} words).`);
   } catch (err) {
     appendSystemMessage(`Error loading project: ${err.message}`, "rejected");
@@ -373,6 +401,8 @@ async function autoRenderEditedPreview() {
           dom.videoPlayer.currentTime = Math.min(prevTime, state.videoDurationS || 0);
           if (wasPlaying) dom.videoPlayer.play().catch(() => {});
 
+          state.lastRenderedVideoUrl = job.results.video_url;
+
           if (dom.quickDownloadBtn) {
             dom.quickDownloadBtn.href = job.results.video_url;
             dom.quickDownloadBtn.setAttribute("download", "edited_video.mp4");
@@ -412,9 +442,15 @@ function appendRenderReadyMessage(videoUrl) {
     <div class="bubble-header"><span class="bubble-author" style="color: var(--accent-emerald);">🎬 Edited Video (MP4) Updated</span></div>
     <div class="bubble-body" style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
       <span>Video updated to ${state.videoDurationS.toFixed(2)}s. Preview playing above!</span>
-      <a class="btn btn-primary btn-sm" href="${videoUrl}" download="edited_video.mp4" style="text-decoration: none;">⬇ Download MP4</a>
+      <button class="btn btn-primary btn-sm chat-dl-btn" style="text-decoration: none; cursor: pointer;">⬇ Download MP4</button>
     </div>
   `;
+  const dlBtn = bubble.querySelector(".chat-dl-btn");
+  if (dlBtn) {
+    dlBtn.addEventListener("click", () => {
+      triggerFileDownload(videoUrl, "edited_video.mp4");
+    });
+  }
   dom.chatStream.appendChild(bubble);
   dom.chatStream.scrollTop = dom.chatStream.scrollHeight;
 }
@@ -769,6 +805,7 @@ async function pollRenderJob(jobId) {
         dom.renderStatusLabel.textContent = `FFmpeg pipeline rendering (${job.progress}%)...`;
       } else if (job.status === "succeeded") {
         clearInterval(interval);
+        state.lastRenderedVideoUrl = job.results.video_url;
         dom.renderStatusLabel.textContent = `Render completed in ${job.latency_ms} ms!`;
         dom.downloadVideoBtn.href = job.results.video_url;
         dom.downloadVideoBtn.setAttribute("download", "final_video.mp4");
@@ -804,7 +841,42 @@ async function pollRenderJob(jobId) {
   }, 400);
 }
 
-// ── Utility ──────────────────────────────────────────────────────────────────
+// ── Export & Download Helpers ───────────────────────────────────────────────
+
+function triggerFileDownload(url, filename = "final_video.mp4") {
+  let downloadUrl = url;
+  if (url.startsWith("http") && (url.includes("127.0.0.1:8000") || url.includes("localhost:8000"))) {
+    try {
+      const u = new URL(url);
+      downloadUrl = u.pathname;
+    } catch {}
+  }
+  const a = document.createElement("a");
+  a.href = downloadUrl;
+  a.setAttribute("download", filename);
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    if (a.parentNode) a.parentNode.removeChild(a);
+  }, 300);
+}
+
+async function handleExportMP4() {
+  if (!state.projectId) {
+    appendSystemMessage("Please load or upload a video first.", "rejected");
+    return;
+  }
+
+  if (state.lastRenderedVideoUrl) {
+    triggerFileDownload(state.lastRenderedVideoUrl, "edited_video.mp4");
+    return;
+  }
+
+  // If no rendered video yet, trigger background render flow or direct export
+  appendSystemMessage("Exporting MP4: rendering edited video with FFmpeg...", "applied");
+  triggerFileDownload(`/api/v1/projects/${state.projectId}/download`, "edited_video.mp4");
+}
 
 function escapeHtml(str) {
   if (!str) return "";

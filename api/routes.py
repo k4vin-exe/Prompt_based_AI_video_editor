@@ -35,6 +35,7 @@ from api.jobs import enqueue_render_job
 from engine.probe import probe_video
 from engine.transcript import build_transcript, Transcript
 from engine.session import Session
+from engine.render import render_timeline
 from engine.answer import AppliedAnswer, ClarificationAnswer, RejectedAnswer
 
 router = APIRouter()
@@ -426,8 +427,29 @@ def download_artifact(job_id: str, filename: str):
         file_path,
         media_type=media_type,
         filename=download_filename,
-        headers={
-            "Content-Disposition": f'attachment; filename="{download_filename}"',
-            "Content-Type": media_type,
-        },
     )
+
+
+@router.get("/api/v1/projects/{project_id}/download", tags=["Projects"])
+def download_project_video(project_id: str):
+    """Directly download the latest rendered MP4 video for a project."""
+    proj = state.get_project(project_id)
+    if not proj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROJECT_NOT_FOUND", "message": f"Project '{project_id}' not found.", "retryable": False, "details": {}},
+        )
+    latest_job = state.get_latest_job_for_project(project_id)
+    if latest_job and latest_job.results and "video_url" in latest_job.results:
+        file_path = os.path.join(settings.storage_dir, latest_job.job_id, "final_video.mp4")
+        if os.path.exists(file_path):
+            return FileResponse(file_path, media_type="video/mp4", filename="edited_video.mp4")
+
+    # If no render job completed yet, render immediately
+    job_id = f"job_render_{uuid.uuid4().hex[:10]}"
+    job_dir = os.path.join(settings.storage_dir, job_id)
+    os.makedirs(job_dir, exist_ok=True)
+    video_out_path = os.path.join(job_dir, "final_video.mp4")
+    render_timeline(proj.session.timeline, proj.video_path, video_out_path)
+    return FileResponse(video_out_path, media_type="video/mp4", filename="edited_video.mp4")
+
