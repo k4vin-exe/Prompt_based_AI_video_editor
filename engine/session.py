@@ -64,7 +64,9 @@ class Session:
     def get_timeline_hash(self) -> str:
         return self._current_timeline.timeline_hash()
 
-    def process_instruction(self, text: str) -> AppliedAnswer | ClarificationAnswer | RejectedAnswer:
+    def process_instruction(
+        self, text: str, time_policy: Optional[str] = None
+    ) -> AppliedAnswer | ClarificationAnswer | RejectedAnswer:
         """
         Process a user instruction or clarification answer.
         """
@@ -78,6 +80,8 @@ class Session:
         intent_dict = parse_instruction(text)
         intent = intent_dict.get("intent", "unknown")
         params = intent_dict.get("params", {})
+        if time_policy:
+            params["time_policy"] = time_policy
 
         if intent == "unknown":
             err = params.get("error", "Could not understand instruction.")

@@ -1,0 +1,677 @@
+openapi: 3.1.0
+info:
+  title: IncuBrix Prompt-Based Video Editing Engine
+  description: Turns natural language instructions into exact, reversible video edits
+    with pure deterministic timeline fold.
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      tags:
+      - System
+      summary: Get Health
+      operationId: get_health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /ready:
+    get:
+      tags:
+      - System
+      summary: Get Ready
+      operationId: get_ready_ready_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+  /api/v1/projects:
+    post:
+      tags:
+      - Projects
+      summary: Create Project
+      description: Create a project via direct file upload or URL/local path.
+      operationId: create_project_api_v1_projects_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_create_project_api_v1_projects_post'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+        '422':
+          description: Unprocessable Content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+  /api/v1/projects/{project_id}:
+    get:
+      tags:
+      - Projects
+      summary: Get Project
+      operationId: get_project_api_v1_projects__project_id__get
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects/{project_id}/timeline:
+    get:
+      tags:
+      - Projects
+      summary: Get Timeline
+      operationId: get_timeline_api_v1_projects__project_id__timeline_get
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Timeline Api V1 Projects  Project Id  Timeline
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects/{project_id}/instructions:
+    post:
+      tags:
+      - Editing
+      summary: Apply Instruction
+      operationId: apply_instruction_api_v1_projects__project_id__instructions_post
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructionRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructionResponse'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardErrorResponse'
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/projects/{project_id}/render:
+    post:
+      tags:
+      - Rendering
+      summary: Request Render
+      operationId: request_render_api_v1_projects__project_id__render_post
+      parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Project Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenderRequest'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobQueuedResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/jobs/{job_id}:
+    get:
+      tags:
+      - Rendering
+      summary: Get Job Status
+      operationId: get_job_status_api_v1_jobs__job_id__get
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/download/{job_id}/{filename}:
+    get:
+      tags:
+      - Rendering
+      summary: Download Artifact
+      operationId: download_artifact_api_v1_download__job_id___filename__get
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      - name: filename
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Filename
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    BeforeAfterModel:
+      properties:
+        before_duration_s:
+          type: number
+          title: Before Duration S
+        after_duration_s:
+          type: number
+          title: After Duration S
+        duration_delta_s:
+          type: number
+          title: Duration Delta S
+        before_timeline_hash:
+          type: string
+          title: Before Timeline Hash
+        after_timeline_hash:
+          type: string
+          title: After Timeline Hash
+      type: object
+      required:
+      - before_duration_s
+      - after_duration_s
+      - duration_delta_s
+      - before_timeline_hash
+      - after_timeline_hash
+      title: BeforeAfterModel
+    Body_create_project_api_v1_projects_post:
+      properties:
+        file:
+          anyOf:
+          - type: string
+            contentMediaType: application/octet-stream
+          - type: 'null'
+          title: File
+        video_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Video Url
+      type: object
+      title: Body_create_project_api_v1_projects_post
+    ErrorDetails:
+      properties:
+        code:
+          type: string
+          title: Code
+          description: UPPER_SNAKE_CASE error code, e.g. WHOLE_VIDEO_CUT, NO_MATCH
+        message:
+          type: string
+          title: Message
+          description: Human-readable explanation of what failed
+        retryable:
+          type: boolean
+          title: Retryable
+          description: Whether repeating the request might succeed without changes
+          default: false
+        details:
+          additionalProperties: true
+          type: object
+          title: Details
+          description: Diagnostic context or parameter details
+      type: object
+      required:
+      - code
+      - message
+      title: ErrorDetails
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HealthResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+          default: ok
+          examples:
+          - ok
+        version:
+          type: string
+          title: Version
+          default: 0.1.0
+          examples:
+          - 0.1.0
+      type: object
+      title: HealthResponse
+    InstructionRequest:
+      properties:
+        say:
+          type: string
+          title: Say
+          description: Plain-language editing command
+          examples:
+          - Cut the first 30 seconds
+        time_policy:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Time Policy
+          description: 'Optional time policy override: ''current_edited'' or ''original_source'''
+          examples:
+          - current_edited
+      type: object
+      required:
+      - say
+      title: InstructionRequest
+    InstructionResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+          description: '''applied'', ''needs_clarification'', or ''rejected'''
+          examples:
+          - applied
+        operations:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/OperationSummaryModel'
+            type: array
+          - type: 'null'
+          title: Operations
+        summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Summary
+        before_after:
+          anyOf:
+          - $ref: '#/components/schemas/BeforeAfterModel'
+          - type: 'null'
+        time_policy:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Time Policy
+        warnings:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Warnings
+        question:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Question
+        options:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Options
+        context:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Context
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        error_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Code
+        original_instruction:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Original Instruction
+        current_duration_s:
+          type: number
+          title: Current Duration S
+        current_timeline_hash:
+          type: string
+          title: Current Timeline Hash
+      type: object
+      required:
+      - status
+      - current_duration_s
+      - current_timeline_hash
+      title: InstructionResponse
+    JobQueuedResponse:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+          description: Unique background job identifier
+          examples:
+          - job_render_123
+        status:
+          type: string
+          title: Status
+          default: queued
+          examples:
+          - queued
+        created_at:
+          type: string
+          title: Created At
+          examples:
+          - '2026-10-23T00:00:00Z'
+      type: object
+      required:
+      - job_id
+      - created_at
+      title: JobQueuedResponse
+    JobResultLinks:
+      properties:
+        video_url:
+          type: string
+          title: Video Url
+          description: Direct download link to rendered MP4 video
+        timeline_url:
+          type: string
+          title: Timeline Url
+          description: Direct download link to final timeline JSON
+        otio_url:
+          type: string
+          title: Otio Url
+          description: Direct download link to OpenTimelineIO export
+        manifest_url:
+          type: string
+          title: Manifest Url
+          description: Direct download link to output manifest JSON
+      type: object
+      required:
+      - video_url
+      - timeline_url
+      - otio_url
+      - manifest_url
+      title: JobResultLinks
+    JobStatusResponse:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+        status:
+          type: string
+          title: Status
+          description: '''queued'', ''running'', ''succeeded'', or ''failed'''
+        progress:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Progress
+          description: Job progress percentage 0-100
+        created_at:
+          type: string
+          title: Created At
+        updated_at:
+          type: string
+          title: Updated At
+        latency_ms:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Latency Ms
+        results:
+          anyOf:
+          - $ref: '#/components/schemas/JobResultLinks'
+          - type: 'null'
+        error:
+          anyOf:
+          - $ref: '#/components/schemas/ErrorDetails'
+          - type: 'null'
+      type: object
+      required:
+      - job_id
+      - status
+      - progress
+      - created_at
+      - updated_at
+      title: JobStatusResponse
+    OperationSummaryModel:
+      properties:
+        op_id:
+          type: integer
+          title: Op Id
+        op_type:
+          type: string
+          title: Op Type
+        description:
+          type: string
+          title: Description
+      type: object
+      required:
+      - op_id
+      - op_type
+      - description
+      title: OperationSummaryModel
+    ProjectResponse:
+      properties:
+        project_id:
+          type: string
+          title: Project Id
+          description: Unique identifier for the project
+          examples:
+          - proj_abc123
+        duration_s:
+          type: number
+          title: Duration S
+          description: Original video duration in seconds
+          examples:
+          - 300.0
+        fps:
+          type: number
+          title: Fps
+          description: Video frame rate
+          examples:
+          - 25.0
+        resolution:
+          items:
+            type: integer
+          type: array
+          title: Resolution
+          description: '[width, height] in pixels'
+          examples:
+          - - 1280
+            - 720
+        has_audio:
+          type: boolean
+          title: Has Audio
+          description: True if video has at least one audio stream
+          examples:
+          - true
+        transcript_word_count:
+          type: integer
+          title: Transcript Word Count
+          description: Number of timestamped words in transcript
+          examples:
+          - 17
+        created_at:
+          type: string
+          title: Created At
+          description: UTC ISO8601 creation timestamp
+      type: object
+      required:
+      - project_id
+      - duration_s
+      - fps
+      - resolution
+      - has_audio
+      - transcript_word_count
+      - created_at
+      title: ProjectResponse
+    ReadyResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+          default: ready
+          examples:
+          - ready
+        stt_adapter:
+          type: string
+          title: Stt Adapter
+          examples:
+          - mock
+        llm_adapter:
+          type: string
+          title: Llm Adapter
+          examples:
+          - mock
+        ffmpeg_available:
+          type: boolean
+          title: Ffmpeg Available
+          examples:
+          - true
+      type: object
+      required:
+      - stt_adapter
+      - llm_adapter
+      - ffmpeg_available
+      title: ReadyResponse
+    RenderRequest:
+      properties:
+        callback_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Callback Url
+          description: Webhook URL called with HMAC-SHA256 signature when render finishes
+          examples:
+          - https://webhook.site/my-callback
+      type: object
+      title: RenderRequest
+    StandardErrorResponse:
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorDetails'
+      type: object
+      required:
+      - error
+      title: StandardErrorResponse
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
