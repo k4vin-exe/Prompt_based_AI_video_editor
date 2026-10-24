@@ -10,6 +10,29 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
+def _load_env_file() -> None:
+    """Load key-value pairs from root .env file into os.environ if not present."""
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if env_path.exists():
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" in line:
+                        key, val = line.split("=", 1)
+                        key = key.strip()
+                        val = val.strip().strip('"').strip("'")
+                        if key and (key not in os.environ or not os.environ[key]):
+                            os.environ[key] = val
+        except Exception:
+            pass
+
+
+_load_env_file()
+
+
 class Settings(BaseModel):
     # Service Settings
     host: str = Field(default=os.getenv("HOST", "0.0.0.0"))

@@ -27,8 +27,13 @@ class GroqLLMAdapter(LLMAdapter):
         api_key: Optional[str] = None,
         model: Optional[str] = None,
     ) -> None:
-        self._api_key = api_key or os.environ.get("GROQ_API_KEY", "")
-        self._model_name = model or os.environ.get("GROQ_LLM_MODEL", "llama-3.1-8b-instant")
+        self._api_key = (api_key or os.environ.get("GROQ_API_KEY", "")).strip()
+        self._model_name = (
+            model
+            or os.environ.get("LLM_GROQ_MODEL")
+            or os.environ.get("GROQ_LLM_MODEL")
+            or "llama-3.1-8b-instant"
+        ).strip()
         self._client = None
 
     @property

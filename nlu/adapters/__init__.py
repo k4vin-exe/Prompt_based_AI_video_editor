@@ -42,7 +42,17 @@ def make_llm_adapter(
     Create an LLM adapter selected by adapter_name (or LLM_ADAPTER env var).
     Wraps the adapter with a CachingLLMAdapter unless cache_mode is 'live'.
     """
-    name = (adapter_name or os.environ.get("LLM_ADAPTER", "mock")).lower()
+    env_adapter = os.environ.get("LLM_ADAPTER", "").strip().lower()
+    if adapter_name:
+        name = adapter_name.lower()
+    elif env_adapter and env_adapter != "mock":
+        name = env_adapter
+    elif os.environ.get("GROQ_API_KEY", "").strip():
+        name = "groq"
+    elif env_adapter:
+        name = env_adapter
+    else:
+        name = "mock"
     mode = (cache_mode or os.environ.get("LLM_CACHE_MODE", "record")).lower()
 
     if name == "mock":
@@ -73,7 +83,17 @@ def make_llm_adapter(
 
 def make_stt_adapter(adapter_name: Optional[str] = None) -> STTAdapter:
     """Create an STT adapter selected by adapter_name (or STT_ADAPTER env var)."""
-    name = (adapter_name or os.environ.get("STT_ADAPTER", "mock")).lower()
+    env_stt = os.environ.get("STT_ADAPTER", "").strip().lower()
+    if adapter_name:
+        name = adapter_name.lower()
+    elif env_stt and env_stt != "mock":
+        name = env_stt
+    elif os.environ.get("GROQ_API_KEY", "").strip():
+        name = "groq"
+    elif env_stt:
+        name = env_stt
+    else:
+        name = "mock"
 
     if name == "mock":
         from .stt_mock import MockSTTAdapter
