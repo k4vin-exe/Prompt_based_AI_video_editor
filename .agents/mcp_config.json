@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "gradio": {
+      "url": "https://hugging-apps-qwen-video-edit.hf.space/gradio_api/mcp/"
+    },
+    "upload_files_to_gradio": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "gradio[mcp]",
+        "gradio",
+        "upload-mcp",
+        "https://hugging-apps-qwen-video-edit.hf.space/",
+        "outputs/temp"
+      ]
+    }
+  }
+}
