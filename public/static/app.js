@@ -847,7 +847,13 @@ function formatTime(s) {
 // ── Natural Language Instruction Dispatcher ──────────────────────────────────
 
 async function sendInstruction(text) {
-  if (!state.projectId) return;
+  if (!state.projectId) {
+    await loadSelectedProject();
+    if (!state.projectId) {
+      appendSystemMessage("Please select or import a video project first.", "rejected");
+      return;
+    }
+  }
 
   // Add user speech bubble
   appendUserMessage(text);
@@ -861,6 +867,16 @@ async function sendInstruction(text) {
       },
       body: JSON.stringify({ say: text }),
     });
+
+    if (!res.ok) {
+      let errMsg = `Server returned status ${res.status}`;
+      try {
+        const errJson = await res.json();
+        errMsg = errJson.error?.message || errJson.detail?.message || errJson.message || errMsg;
+      } catch {}
+      appendSystemMessage(errMsg, "rejected");
+      return;
+    }
 
     const data = await res.json();
     if (data.error) {

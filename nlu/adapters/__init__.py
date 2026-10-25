@@ -60,8 +60,12 @@ def make_llm_adapter(
         # Mock already has its own cassette system; wrap is optional
         inner: LLMAdapter = MockLLMAdapter(cassette_dir=cache_dir)
     elif name == "groq":
-        from .llm_groq import GroqLLMAdapter
-        inner = GroqLLMAdapter()
+        if os.environ.get("GROQ_API_KEY", "").strip():
+            from .llm_groq import GroqLLMAdapter
+            inner = GroqLLMAdapter()
+        else:
+            from .llm_mock import MockLLMAdapter
+            inner = MockLLMAdapter(cassette_dir=cache_dir)
     elif name == "gemini":
         from .llm_gemini import GeminiLLMAdapter
         inner = GeminiLLMAdapter()
@@ -105,10 +109,14 @@ def make_stt_adapter(adapter_name: Optional[str] = None) -> STTAdapter:
         from .stt_whisper import WhisperSTTAdapter
         return WhisperSTTAdapter()
     elif name == "groq":
-        try:
-            from .stt_groq import GroqSTTAdapter  # type: ignore
-            return GroqSTTAdapter()
-        except ImportError:
+        if os.environ.get("GROQ_API_KEY", "").strip():
+            try:
+                from .stt_groq import GroqSTTAdapter  # type: ignore
+                return GroqSTTAdapter()
+            except Exception:
+                from .stt_mock import MockSTTAdapter
+                return MockSTTAdapter()
+        else:
             from .stt_mock import MockSTTAdapter
             return MockSTTAdapter()
     else:

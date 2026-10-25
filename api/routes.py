@@ -555,6 +555,7 @@ def download_artifact(job_id: str, filename: str):
     )
 
 
+@router.get("/api/v1/projects/{project_id}/download/video", tags=["Projects"])
 @router.get("/api/v1/projects/{project_id}/download", tags=["Projects"])
 def download_project_video(project_id: str):
     """Directly download the latest rendered MP4 video for a project."""
@@ -594,9 +595,11 @@ def download_project_video(project_id: str):
     return FileResponse(video_out_path, media_type="video/mp4", filename="edited_video.mp4")
 
 
+@router.post("/api/v1/projects/{project_id}/export-direct", tags=["Projects"])
 @router.post("/api/v1/projects/{project_id}/save-local", tags=["Projects"])
 def save_project_video_local(project_id: str, open_folder: bool = True):
     """Save the latest rendered MP4 directly to the user's Downloads and outputs directory, and optionally reveal in File Explorer."""
+    import sys
     from pathlib import Path
     import subprocess
     import logging
@@ -617,10 +620,11 @@ def save_project_video_local(project_id: str, open_folder: bool = True):
         if os.path.exists(candidate):
             video_source = candidate
 
-    if not video_source:
+    if not video_source or not os.path.exists(video_source):
         job_id = f"job_render_{uuid.uuid4().hex[:10]}"
         job_dir = os.path.join(settings.storage_dir, job_id)
         os.makedirs(job_dir, exist_ok=True)
+        video_source = os.path.join(job_dir, "final_video.mp4")
         render_timeline(
             proj.session.timeline,
             proj.video_path,
@@ -629,26 +633,32 @@ def save_project_video_local(project_id: str, open_folder: bool = True):
             effects=getattr(proj.session, "effects", []),
         )
 
-    # 1. Save directly to Downloads/edited_video.mp4
-    dl_dir = os.path.expanduser("~/Downloads")
-    os.makedirs(dl_dir, exist_ok=True)
-    target_dl_path = os.path.join(dl_dir, "edited_video.mp4")
-    shutil.copyfile(video_source, target_dl_path)
+    target_dl_path = video_source
+    named_dl_path = video_source
 
-    # 2. Also save to outputs/edited_video.mp4
-    out_dir = os.path.abspath("outputs")
-    os.makedirs(out_dir, exist_ok=True)
-    target_out_path = os.path.join(out_dir, "edited_video.mp4")
-    shutil.copyfile(video_source, target_out_path)
+    try:
+        # 1. Save directly to Downloads/edited_video.mp4 if accessible
+        dl_dir = os.path.expanduser("~/Downloads")
+        os.makedirs(dl_dir, exist_ok=True)
+        target_dl_path = os.path.join(dl_dir, "edited_video.mp4")
+        shutil.copyfile(video_source, target_dl_path)
 
-    # 3. Also save named file based on project
-    base_stem = Path(proj.video_path).stem if proj.video_path else "edited_video"
-    named_dl_path = os.path.join(dl_dir, f"{base_stem}_edited.mp4")
-    shutil.copyfile(video_source, named_dl_path)
+        # 2. Also save to outputs/edited_video.mp4
+        out_dir = os.path.abspath("outputs")
+        os.makedirs(out_dir, exist_ok=True)
+        target_out_path = os.path.join(out_dir, "edited_video.mp4")
+        shutil.copyfile(video_source, target_out_path)
 
-    size_bytes = os.path.getsize(target_dl_path)
+        # 3. Also save named file based on project
+        base_stem = Path(proj.video_path).stem if proj.video_path else "edited_video"
+        named_dl_path = os.path.join(dl_dir, f"{base_stem}_edited.mp4")
+        shutil.copyfile(video_source, named_dl_path)
+    except Exception as e:
+        logger.warning(f"Could not copy to Downloads/outputs: {e}")
 
-    if open_folder:
+    size_bytes = os.path.getsize(video_source) if os.path.exists(video_source) else 0
+
+    if open_folder and sys.platform == "win32":
         try:
             # Highlight file in Windows File Explorer
             subprocess.Popen(["explorer.exe", f"/select,{os.path.normpath(target_dl_path)}"])
