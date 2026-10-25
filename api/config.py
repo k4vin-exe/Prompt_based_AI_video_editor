@@ -70,7 +70,7 @@ class Settings(BaseModel):
     # Limits & Defaults
     max_video_size_mb: int = Field(default=int(os.getenv("MAX_VIDEO_SIZE_MB", "500")))
     default_time_policy: str = Field(default=os.getenv("DEFAULT_TIME_POLICY", "current_edited"))
-    max_concurrent_renders: int = Field(default=int(os.getenv("MAX_CONCURRENT_RENDERS", "2")))
+    max_concurrent_renders: int = Field(default=int(os.getenv("MAX_CONCURRENT_RENDERS", "1")))
 
 
 settings = Settings()

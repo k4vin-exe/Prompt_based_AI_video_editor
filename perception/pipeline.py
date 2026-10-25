@@ -255,7 +255,7 @@ def _extract_audio_if_needed(video_path: str) -> str:
 
     try:
         subprocess.run([
-            ffmpeg, "-y", "-i", video_path,
+            ffmpeg, "-threads", "1", "-y", "-i", video_path,
             "-vn", "-ar", "16000", "-ac", "1",
             "-f", "wav", tmp.name,
         ], check=True, capture_output=True)

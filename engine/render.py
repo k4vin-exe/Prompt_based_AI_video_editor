@@ -260,17 +260,21 @@ def render_timeline(
         full_filter_str = ";".join(filter_complex_parts)
         cmd = [
             exe,
+            "-threads", "1",
             "-i", source_video_path,
             "-filter_complex", full_filter_str,
             "-map", f"[{v_final}]",
             "-map", "[a_concat]",
             "-c:v", "libx264",
+            "-threads", "1",
+            "-x264-params", "threads=1:lookahead-threads=1:rc-lookahead=10",
             "-preset", "veryfast",
             "-crf", "22",
             "-c:a", "aac",
             "-b:a", "192k",
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
+            "-max_muxing_queue_size", "1024",
             "-y",
             output_video_path,
         ]

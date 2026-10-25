@@ -21,6 +21,7 @@ This is DETERMINISTIC CODE — no LLM involvement in the resolution.
 """
 from __future__ import annotations
 
+import os
 from typing import List, Optional, Dict, Any, Tuple
 
 from engine.transcript import Transcript
@@ -151,10 +152,12 @@ def _semantic_search(
     Find semantically similar sentences to the topic query using fastembed.
     Returns MatchSpan list, or empty list if fastembed is unavailable.
     """
+    if os.getenv("DISABLE_EMBEDDINGS", "1") == "1":
+        return []
+
     try:
         from fastembed import TextEmbedding  # type: ignore
         import numpy as np
-        import os
 
         model_name = os.environ.get("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
         embedder = TextEmbedding(model_name=model_name)

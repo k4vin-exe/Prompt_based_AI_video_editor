@@ -930,9 +930,11 @@ function handleInstructionAnswer(ans, originalText) {
 // ── Background Auto-Render Preview ───────────────────────────────────────────
 
 let _autoRenderTimer = null;
+let _isAutoRendering = false;
 
 async function autoRenderEditedPreview() {
-  if (!state.projectId) return;
+  if (!state.projectId || _isAutoRendering) return;
+  _isAutoRendering = true;
 
   dom.previewStatusBadge.textContent = "🎬 Rendering preview...";
   dom.previewStatusBadge.classList.add("updating");
@@ -944,7 +946,10 @@ async function autoRenderEditedPreview() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ callback_url: null }),
     });
-    if (res.status !== 202) return;
+    if (res.status !== 202) {
+      _isAutoRendering = false;
+      return;
+    }
     const data = await res.json();
     const jobId = data.job_id;
 
@@ -959,6 +964,7 @@ async function autoRenderEditedPreview() {
         if (job.status === "succeeded") {
           clearInterval(_autoRenderTimer);
           _autoRenderTimer = null;
+          _isAutoRendering = false;
 
           dom.previewStatusBadge.textContent = "✓ Edited Video Active (MP4)";
           dom.previewStatusBadge.classList.remove("updating");
@@ -977,14 +983,17 @@ async function autoRenderEditedPreview() {
         } else if (job.status === "failed") {
           clearInterval(_autoRenderTimer);
           _autoRenderTimer = null;
+          _isAutoRendering = false;
           dom.previewStatusBadge.classList.add("hidden");
         }
       } catch {
         clearInterval(_autoRenderTimer);
         _autoRenderTimer = null;
+        _isAutoRendering = false;
       }
-    }, 400);
+    }, 500);
   } catch (err) {
+    _isAutoRendering = false;
     console.warn("Auto render preview failed:", err);
   }
 }

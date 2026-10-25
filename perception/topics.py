@@ -127,6 +127,9 @@ def _embed_sentences(sentences: List[Dict[str, Any]]):
     Embed sentence texts using fastembed bge-small-en-v1.5 (Apache 2.0).
     Returns numpy array of shape (N, D), or None if fastembed not available.
     """
+    if os.getenv("DISABLE_EMBEDDINGS", "1") == "1":
+        return None
+
     try:
         from fastembed import TextEmbedding  # type: ignore
         import numpy as np
