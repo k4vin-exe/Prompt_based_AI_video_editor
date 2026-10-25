@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source
 COPY . .
 
-# Install the package in editable mode for imports
-RUN pip install --no-cache-dir -e . --no-deps
+# Set PYTHONPATH so engine, api, nlu, perception import cleanly
+ENV PYTHONPATH=/app
 
 CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

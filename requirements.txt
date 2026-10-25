@@ -19,17 +19,12 @@ alembic>=1.13.0               # migrations
 boto3>=1.34.0                 # S3-compatible (MinIO)
 aioboto3>=13.0.0              # async S3
 
-# ── STT adapters ──────────────────────────────────────────────────────────────
-faster-whisper>=1.0.3         # MIT licence, CPU-friendly
-# groq>=0.9.0                 # Groq STT (optional, uncomment when needed)
-
-# ── LLM adapters ──────────────────────────────────────────────────────────────
-groq>=0.9.0                   # Groq LLM (free tier)
+# ── STT & LLM adapters ─────────────────────────────────────────────────────────
+groq>=0.9.0                   # Groq LLM & STT (free cloud tier)
+# faster-whisper>=1.0.3         # Optional local CPU Whisper (uncomment for offline local models)
+# fastembed>=0.3.0              # Optional local BGE-small embeddings
 # google-generativeai>=0.7.0  # Gemini (optional)
 # ollama>=0.2.0               # Ollama (optional)
-
-# ── Embeddings ────────────────────────────────────────────────────────────────
-fastembed>=0.3.0              # BGE-small, Apache 2.0
 
 # ── NLU ───────────────────────────────────────────────────────────────────────
 # (timeparse uses only stdlib regex)
