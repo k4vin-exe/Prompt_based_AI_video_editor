@@ -2,20 +2,8 @@
   "version": 2,
   "rewrites": [
     {
-      "source": "/static/(.*)",
-      "destination": "/web/$1"
-    },
-    {
-      "source": "/tests/fixtures/(.*)",
-      "destination": "/tests/fixtures/$1"
-    },
-    {
       "source": "/demo",
-      "destination": "/web/index.html"
-    },
-    {
-      "source": "/",
-      "destination": "/web/index.html"
+      "destination": "/index.html"
     },
     {
       "source": "/api/(.*)",

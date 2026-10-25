@@ -41,8 +41,22 @@ class Settings(BaseModel):
     log_level: str = Field(default=os.getenv("LOG_LEVEL", "INFO"))
 
     # Storage Paths
-    storage_dir: Path = Field(default=Path(os.getenv("STORAGE_DIR", "outputs/api_storage")).resolve())
-    temp_dir: Path = Field(default=Path(os.getenv("TEMP_DIR", "outputs/temp")).resolve())
+    storage_dir: Path = Field(
+        default=Path(
+            os.getenv(
+                "STORAGE_DIR",
+                "/tmp/api_storage" if (os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME")) else "outputs/api_storage"
+            )
+        ).resolve()
+    )
+    temp_dir: Path = Field(
+        default=Path(
+            os.getenv(
+                "TEMP_DIR",
+                "/tmp/temp" if (os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME")) else "outputs/temp"
+            )
+        ).resolve()
+    )
 
     # Provider Adapters
     stt_adapter: str = Field(default=os.getenv("STT_ADAPTER", "mock"))
@@ -60,5 +74,8 @@ class Settings(BaseModel):
 
 
 settings = Settings()
-os.makedirs(settings.storage_dir, exist_ok=True)
-os.makedirs(settings.temp_dir, exist_ok=True)
+try:
+    os.makedirs(settings.storage_dir, exist_ok=True)
+    os.makedirs(settings.temp_dir, exist_ok=True)
+except Exception:
+    pass

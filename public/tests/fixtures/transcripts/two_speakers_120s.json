@@ -1,0 +1,26 @@
+{
+  "duration_us": 120000000,
+  "language": "en",
+  "words": [
+    {"text": "welcome", "start_us": 1000000, "end_us": 1500000, "speaker": "host", "confidence": 0.99},
+    {"text": "everyone", "start_us": 1600000, "end_us": 2200000, "speaker": "host", "confidence": 0.98},
+    {"text": "can", "start_us": 5000000, "end_us": 5300000, "speaker": "host", "confidence": 0.97},
+    {"text": "you", "start_us": 5400000, "end_us": 5600000, "speaker": "host", "confidence": 0.99},
+    {"text": "tell", "start_us": 5700000, "end_us": 6000000, "speaker": "host", "confidence": 0.99},
+    {"text": "us", "start_us": 6100000, "end_us": 6300000, "speaker": "host", "confidence": 0.99},
+    {"text": "about", "start_us": 6400000, "end_us": 6700000, "speaker": "host", "confidence": 0.98},
+    {"text": "your", "start_us": 6800000, "end_us": 7000000, "speaker": "host", "confidence": 0.99},
+    {"text": "old", "start_us": 7100000, "end_us": 7400000, "speaker": "host", "confidence": 0.98},
+    {"text": "job", "start_us": 7500000, "end_us": 8000000, "speaker": "host", "confidence": 0.99},
+    {"text": "sure", "start_us": 10000000, "end_us": 10500000, "speaker": "guest", "confidence": 0.96},
+    {"text": "at", "start_us": 10600000, "end_us": 10800000, "speaker": "guest", "confidence": 0.97},
+    {"text": "my", "start_us": 10900000, "end_us": 11200000, "speaker": "guest", "confidence": 0.98},
+    {"text": "old", "start_us": 11300000, "end_us": 11600000, "speaker": "guest", "confidence": 0.99},
+    {"text": "job", "start_us": 11700000, "end_us": 12200000, "speaker": "guest", "confidence": 0.99},
+    {"text": "we", "start_us": 12300000, "end_us": 12500000, "speaker": "guest", "confidence": 0.98},
+    {"text": "built", "start_us": 12600000, "end_us": 13000000, "speaker": "guest", "confidence": 0.97},
+    {"text": "software", "start_us": 13100000, "end_us": 13900000, "speaker": "guest", "confidence": 0.99},
+    {"text": "fascinating", "start_us": 20000000, "end_us": 20900000, "speaker": "host", "confidence": 0.98},
+    {"text": "thanks", "start_us": 110000000, "end_us": 110800000, "speaker": "host", "confidence": 0.99}
+  ]
+}

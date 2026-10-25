@@ -194,9 +194,12 @@ def create_app() -> FastAPI:
         from fastapi.staticfiles import StaticFiles
         app.mount("/tests/fixtures", StaticFiles(directory=str(fixtures_dir)), name="fixtures")
 
-    storage_dir = Path(settings.storage_dir)
-    storage_dir.mkdir(parents=True, exist_ok=True)
-    app.mount("/storage", StaticFiles(directory=str(storage_dir)), name="storage")
+    try:
+        storage_dir = Path(settings.storage_dir)
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        app.mount("/storage", StaticFiles(directory=str(storage_dir)), name="storage")
+    except Exception:
+        pass
 
     return app
 
