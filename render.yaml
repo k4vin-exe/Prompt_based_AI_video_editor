@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: prompt-based-ai-video-editor
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /ready
+    envVars:
+      - key: LLM_ADAPTER
+        value: groq
+      - key: STT_ADAPTER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO

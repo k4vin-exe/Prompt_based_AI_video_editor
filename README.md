@@ -1,3 +1,13 @@
+---
+title: Prompt Based AI Video Editor
+emoji: 🎬
+colorFrom: purple
+colorTo: indigo
+sdk: docker
+app_port: 8000
+pinned: false
+---
+
 # IncuBrix Prompt-Based Video Editing Engine
 
 [![Determinism](https://img.shields.io/badge/Determinism-100%25-brightgreen.svg)](#determinism)
