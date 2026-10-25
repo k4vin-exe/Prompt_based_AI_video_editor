@@ -68,11 +68,30 @@ def get_ready() -> ReadyResponse:
 
 # ── Project Ingestion (Integration Standard 7) ───────────────────────────────
 
+def _resolve_video_path(path: Optional[str]) -> Optional[str]:
+    """Resolve relative video/transcript paths against project root and public dirs."""
+    if not path:
+        return path
+    if os.path.exists(path):
+        return path
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent
+    c1 = root / path
+    if c1.exists():
+        return str(c1)
+    c2 = root / "public" / path
+    if c2.exists():
+        return str(c2)
+    return path
+
+
 def _create_project_from_path(
     video_path: str,
     transcript_data: Optional[List[Dict[str, Any]]] = None,
     transcript_path: Optional[str] = None,
 ) -> ProjectResponse:
+    if transcript_path:
+        transcript_path = _resolve_video_path(transcript_path)
     meta = probe_video(video_path)
     proj_id = f"proj_{uuid.uuid4().hex[:12]}"
 
@@ -101,8 +120,8 @@ def _create_project_from_path(
 
         # Fallback if video has no speech or STT produced empty transcript
         if transcript is None or len(transcript.words) == 0:
-            fixture_path = os.path.join(os.path.dirname(__file__), "..", "tests", "fixtures", "transcripts", "interview_300s.json")
-            if meta.duration_us >= 60_000_000 and os.path.exists(fixture_path):
+            fixture_path = _resolve_video_path("tests/fixtures/transcripts/interview_300s.json")
+            if meta.duration_us >= 60_000_000 and fixture_path and os.path.exists(fixture_path):
                 import json
                 with open(fixture_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
@@ -140,21 +159,21 @@ def _create_project_from_path(
     # Determine preview URL for video player
     preview_url = None
     clean_vpath = video_path.replace("\\", "/")
-    if clean_vpath.startswith("tests/"):
-        preview_url = f"/{clean_vpath}"
+    if clean_vpath.startswith("tests/") or clean_vpath.startswith("/tests/"):
+        preview_url = f"/{clean_vpath.lstrip('/')}"
     else:
-        storage_abs = os.path.normcase(os.path.abspath(settings.storage_dir))
-        vid_abs = os.path.normcase(os.path.abspath(video_path))
-        if vid_abs.startswith(storage_abs):
-            rel = os.path.relpath(vid_abs, storage_abs)
-            preview_url = f"/storage/{rel.replace(os.sep, '/')}"
-        elif os.path.exists(video_path):
-            try:
+        try:
+            storage_abs = os.path.normcase(os.path.abspath(settings.storage_dir))
+            vid_abs = os.path.normcase(os.path.abspath(video_path))
+            if vid_abs.startswith(storage_abs):
+                rel = os.path.relpath(vid_abs, storage_abs)
+                preview_url = f"/storage/{rel.replace(os.sep, '/')}"
+            elif os.path.exists(video_path):
                 dest = os.path.join(settings.storage_dir, f"view_{proj_id}_{os.path.basename(video_path)}")
                 shutil.copyfile(video_path, dest)
                 preview_url = f"/storage/{os.path.basename(dest)}"
-            except Exception:
-                preview_url = None
+        except Exception:
+            preview_url = None
 
     analysis_summary = None
     if analysis:
@@ -187,7 +206,11 @@ def _create_project_from_path(
 async def upload_project_video(file: UploadFile = File(...)) -> ProjectResponse:
     """Create a project via direct video file upload."""
     uploads_dir = os.path.abspath(settings.storage_dir)
-    os.makedirs(uploads_dir, exist_ok=True)
+    try:
+        os.makedirs(uploads_dir, exist_ok=True)
+    except Exception:
+        uploads_dir = "/tmp"
+
     file_ext = os.path.splitext(file.filename or "video.mp4")[1]
     save_path = os.path.join(uploads_dir, f"upload_{uuid.uuid4().hex[:8]}{file_ext}")
     with open(save_path, "wb") as buffer:
@@ -212,16 +235,22 @@ async def create_project(
 ) -> ProjectResponse:
     """Create a project via direct file upload or URL/local path."""
     if file:
+        uploads_dir = os.path.abspath(settings.storage_dir)
+        try:
+            os.makedirs(uploads_dir, exist_ok=True)
+        except Exception:
+            uploads_dir = "/tmp"
         file_ext = os.path.splitext(file.filename or "video.mp4")[1]
-        save_path = os.path.join(settings.storage_dir, f"upload_{uuid.uuid4().hex[:8]}{file_ext}")
+        save_path = os.path.join(uploads_dir, f"upload_{uuid.uuid4().hex[:8]}{file_ext}")
         with open(save_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         return _create_project_from_path(save_path)
 
     elif video_url:
         # Support local test path or URL
-        if os.path.exists(video_url):
-            return _create_project_from_path(video_url)
+        resolved_url = _resolve_video_path(video_url)
+        if resolved_url and os.path.exists(resolved_url):
+            return _create_project_from_path(resolved_url)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -234,8 +263,10 @@ async def create_project(
             url = body.get("video_url")
             words = body.get("transcript_override")
             t_path = body.get("transcript_path")
-            if url and os.path.exists(url):
-                return _create_project_from_path(url, words, t_path)
+            resolved_url = _resolve_video_path(url)
+            resolved_tpath = _resolve_video_path(t_path) if t_path else None
+            if resolved_url and os.path.exists(resolved_url):
+                return _create_project_from_path(resolved_url, words, resolved_tpath)
         except Exception:
             pass
 

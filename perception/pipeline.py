@@ -163,9 +163,12 @@ def analyse(
         "chapters": chapters,
     }
 
-    os.makedirs(os.path.dirname(analysis_path) or ".", exist_ok=True)
-    with open(analysis_path, "w", encoding="utf-8") as f:
-        json.dump(analysis, f, ensure_ascii=False, indent=2)
+    try:
+        os.makedirs(os.path.dirname(analysis_path) or ".", exist_ok=True)
+        with open(analysis_path, "w", encoding="utf-8") as f:
+            json.dump(analysis, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
     return analysis
 
@@ -174,8 +177,11 @@ def load_analysis(video_path: str, cache_dir: Optional[str] = None) -> Optional[
     """Load cached analysis.json without re-running the pipeline."""
     path = _analysis_path(video_path, cache_dir)
     if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
     return None
 
 
@@ -195,16 +201,22 @@ def _sha256_file(path: str) -> str:
     return h.hexdigest()
 
 
-def _analysis_path(video_path: str, cache_dir: Optional[str]) -> str:
+def _analysis_path(video_path: str, cache_dir: Optional[str] = None) -> str:
     """Return the path where analysis.json should be written."""
     base = os.path.splitext(os.path.basename(video_path))[0]
+    if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        return os.path.join("/tmp", f"{base}_analysis.json")
     directory = cache_dir or os.path.dirname(os.path.abspath(video_path))
     return os.path.join(directory, f"{base}_analysis.json")
 
 
 def _default_stt_adapter():
-    """Select STT adapter based on STT_ADAPTER env var."""
-    adapter_name = os.environ.get("STT_ADAPTER", "whisper").lower()
+    """Select STT adapter based on STT_ADAPTER env var with resilient fallback."""
+    adapter_name = os.environ.get(
+        "STT_ADAPTER",
+        "mock" if (os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME")) else "whisper"
+    ).lower()
+
     if adapter_name == "mock":
         from nlu.adapters.stt_mock import MockSTTAdapter
         return MockSTTAdapter()
@@ -212,11 +224,15 @@ def _default_stt_adapter():
         try:
             from nlu.adapters.stt_groq import GroqSTTAdapter  # type: ignore
             return GroqSTTAdapter()
-        except ImportError:
-            pass
-    # Default: faster-whisper
-    from nlu.adapters.stt_whisper import WhisperSTTAdapter
-    return WhisperSTTAdapter()
+        except Exception:
+            from nlu.adapters.stt_mock import MockSTTAdapter
+            return MockSTTAdapter()
+    try:
+        from nlu.adapters.stt_whisper import WhisperSTTAdapter
+        return WhisperSTTAdapter()
+    except Exception:
+        from nlu.adapters.stt_mock import MockSTTAdapter
+        return MockSTTAdapter()
 
 
 def _extract_audio_if_needed(video_path: str) -> str:
