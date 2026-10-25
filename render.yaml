@@ -4,7 +4,8 @@ services:
     runtime: docker
     plan: free
     region: oregon
-    healthCheckPath: /ready
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: LLM_ADAPTER
         value: groq
